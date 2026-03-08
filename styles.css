@@ -428,3 +428,31 @@ button:disabled {
     min-height: 420px;
   }
 }
+
+html,body,#app{height:100%;}
+@media (min-width:1081px){html,body{overflow:hidden;}#app,.screen,.game-shell{height:100%;}.game-shell{grid-template-rows:auto minmax(0,1fr) 180px;}.main-layout{min-height:0;}.side-stack{min-height:0;grid-template-rows:auto minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);}.side-card,.log-card{min-height:0;}.panel-scroll{overflow:auto;padding-right:4px;}.log-list{max-height:none;height:calc(100% - 28px);} .map-card{min-height:0;}}
+.topbar-actions .toggle{background:#ead4b0;}
+.feedback-card{padding:16px 18px;border-radius:18px;background:rgba(84,51,30,.92);color:var(--text-light);box-shadow:var(--shadow);}
+.feedback-card.bad{background:rgba(121,41,29,.92);}
+.feedback-card.event{background:rgba(67,59,101,.92);}
+.feedback-card.battle{background:rgba(104,57,26,.94);}
+.feedback-card h3{margin:0 0 10px;}
+.feedback-body{font-size:14px;line-height:1.7;color:rgba(246,232,203,.94);}
+.help-card{background:rgba(244,234,214,.92);}
+.help-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));}
+.help-item{padding:10px 12px;border-radius:12px;background:rgba(114,76,51,.08);border:1px solid rgba(114,76,51,.12);font-size:13px;line-height:1.65;}
+.detail-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin:12px 0;}
+.detail-row{padding:8px 10px;border-radius:12px;background:rgba(177,64,39,.08);border:1px solid rgba(177,64,39,.14);}
+.officer-card{padding:10px 12px;border-radius:12px;background:rgba(177,64,39,.08);border:1px solid rgba(177,64,39,.14);display:grid;gap:8px;}
+.officer-card small{color:#6e4d39;line-height:1.6;}
+.officer-actions{display:flex;flex-wrap:wrap;gap:8px;}
+.officer-actions button{padding:6px 10px;font-size:12px;}
+.map-overlay{position:absolute;left:18px;top:52px;max-width:calc(100% - 36px);padding:6px 10px;background:rgba(177,64,39,.86);color:var(--text-light);border-radius:999px;font-size:13px;z-index:2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.map-card::after{content:'';position:absolute;inset:0;background-image:radial-gradient(rgba(123,84,57,.05) 1px,transparent 1px);background-size:12px 12px;opacity:.45;pointer-events:none;}
+.river-line{fill:none;stroke:rgba(72,127,161,.42);stroke-width:12;stroke-linecap:round;stroke-linejoin:round;}
+.river-line.thin{stroke-width:5;stroke:rgba(72,127,161,.56);}
+.terrain-shape{fill:rgba(141,120,80,.13);stroke:rgba(109,87,57,.2);stroke-width:2;}
+.region-label{font-size:26px;fill:rgba(77,53,38,.18);letter-spacing:10px;}
+.city-node.flash circle:first-of-type{stroke:rgba(177,64,39,.78);stroke-width:4px;}
+.badge-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+@media (min-width:1081px){.side-stack{grid-template-rows:auto minmax(0,1fr) minmax(0,1.25fr) minmax(0,1fr) minmax(0,1fr);}}
