@@ -11,6 +11,25 @@
 
 如果浏览器限制本地脚本加载，也可以用任意静态文件服务器指向该目录。
 
+
+## 部署到 GitHub Pages（xx.github.io 直接游玩）
+
+本项目是纯静态页面（HTML/CSS/JS），可以直接部署到 GitHub Pages。
+
+1. 把仓库推到 GitHub（建议默认分支为 `main`）。
+2. 打开仓库 `Settings -> Pages`，将 Source 设为 **GitHub Actions**。
+3. 本仓库已提供工作流：`.github/workflows/deploy-pages.yml`，每次推送到 `main` 会自动发布。
+
+发布地址规则：
+- 用户/组织主页仓库（仓库名必须与用户名一致，即 `<用户名>.github.io`）：`https://<用户名>.github.io/`
+- 普通仓库：`https://<用户名>.github.io/<仓库名>/`
+
+例如（假设你的 GitHub 用户名是 `alice`）：
+- 仓库名 `alice.github.io` -> `https://alice.github.io/`
+- 仓库名 `fdtk` -> `https://alice.github.io/fdtk/`
+
+> 说明：代码里使用了相对路径（如 `./src/...`），兼容上述两种地址形式。
+
 ## 当前内容
 
 - 1 个剧本：923：后唐开国
