@@ -1,13 +1,297 @@
-﻿(function(){
-const root=document.getElementById('app');const gameApi=window.FDTK.game;const storageApi=window.FDTK.storage;const ui=window.FDTK.ui;const audio=window.FDTK.audio;
-const appState={screen:'title',game:null,notice:'',noticeTone:'normal',audioEnabled:audio?audio.isEnabled():false,isFullscreen:!!document.fullscreenElement,currentPanel:'civil'};
-function setNotice(msg,tone){appState.notice=msg;appState.noticeTone=tone||'normal';}
-function syncFullscreen(){appState.isFullscreen=!!document.fullscreenElement;}
-function safeEnsureAudio(){if(!audio||!audio.ensureContext){return;}try{audio.ensureContext();}catch(error){console.warn('audio init failed',error);}}
-function safePlay(kind){if(!audio||!audio.play){return;}try{audio.play(kind);}catch(error){console.warn('audio play failed',error);}}
-function playFeedback(){if(!appState.game||!appState.game.lastFeedback){return;}const tone=appState.game.lastFeedback.tone;if(tone==='battle'){safePlay('battle');return;}if(tone==='event'){safePlay('event');return;}if(tone==='bad'){safePlay('bad');return;}safePlay('action');}
-function render(){syncFullscreen();appState.audioEnabled=audio?audio.isEnabled():false;ui.renderApp(root,appState,handlers);}
-function openGame(game){appState.game=game;appState.screen=game.gameOver?'game-over':'game';appState.currentPanel='civil';render();}
-const handlers={newGame:function(){appState.screen='select-force';setNotice('');render();},continueAuto:function(){const saved=storageApi.loadGame('auto');if(!saved){setNotice('最近进度为空。','bad');appState.screen='title';render();safePlay('bad');return;}setNotice('已读取最近进度。');openGame(saved);playFeedback();},backTitle:function(){appState.screen='title';setNotice('');render();},loadSlot:function(slotId){const saved=storageApi.loadGame(slotId);if(!saved){setNotice('该槽位暂无内容。','bad');appState.screen='title';render();safePlay('bad');return;}setNotice('已读取手动槽位 '+slotId+'。');openGame(saved);playFeedback();},chooseForce:function(forceId){safeEnsureAudio();const game=gameApi.createNewGame(forceId);try{storageApi.saveGame('auto',game);}catch(error){console.warn('auto save failed',error);}setNotice('新局已开。');openGame(game);playFeedback();},selectCity:function(cityId){if(!appState.game){return;}safeEnsureAudio();appState.game=gameApi.applyAction(appState.game,{type:'selectCity',cityId:cityId});render();safePlay('action');},setPanel:function(panelId){appState.currentPanel=panelId||'civil';render();safePlay('action');},gameAction:function(action){if(!appState.game){return;}safeEnsureAudio();try{appState.game=action.type==='endTurn'&&gameApi.safeEndTurn?gameApi.safeEndTurn(appState.game):gameApi.applyAction(appState.game,action);}catch(error){console.error(error);setNotice('本月结算出现异常，已保留当前进度。请重试。','bad');render();safePlay('bad');return;}if(action.type==='endTurn'){try{storageApi.saveGame('auto',appState.game);}catch(error){console.warn('auto save failed',error);}setNotice('月度结算已完成，并自动保存。');safePlay('event');}else{setNotice('');playFeedback();}if(appState.game.gameOver){try{storageApi.saveGame('auto',appState.game);}catch(error){console.warn('auto save failed',error);}appState.screen='game-over';}render();},saveSlot:function(slotId){if(!appState.game){return;}try{storageApi.saveGame(slotId,appState.game);setNotice('已写入手动槽位 '+slotId+'。');}catch(error){setNotice('写入存档失败。','bad');console.warn('save slot failed',error);}render();safePlay('action');},toggleAudio:function(){if(!audio){return;}let enabled=false;try{enabled=audio.toggle();}catch(error){console.warn('audio toggle failed',error);}appState.audioEnabled=enabled;setNotice(enabled?'音效已开启。':'音效已关闭。');render();if(enabled){safePlay('action');}},toggleFullscreen:function(){if(!document.fullscreenElement){document.documentElement.requestFullscreen().then(function(){syncFullscreen();render();}).catch(function(){setNotice('浏览器未允许进入全屏。','bad');render();safePlay('bad');});return;}document.exitFullscreen().then(function(){syncFullscreen();render();});}};
-document.addEventListener('fullscreenchange',function(){syncFullscreen();render();});render();
+﻿(function () {
+  const root = document.getElementById('app');
+  const gameApi = window.FDTK.game;
+  const storageApi = window.FDTK.storage;
+  const ui = window.FDTK.ui;
+  const audio = window.FDTK.audio;
+
+  const appState = {
+    screen: 'title',
+    game: null,
+    notice: '',
+    noticeTone: 'normal',
+    audioEnabled: audio ? audio.isEnabled() : false,
+    isFullscreen: !!document.fullscreenElement,
+    currentPanel: 'civil',
+    pendingBattleAction: null,
+  };
+
+  function setNotice(msg, tone) {
+    appState.notice = msg;
+    appState.noticeTone = tone || 'normal';
+  }
+
+  function syncFullscreen() {
+    appState.isFullscreen = !!document.fullscreenElement;
+  }
+
+  function safeEnsureAudio() {
+    if (!audio || !audio.ensureContext) {
+      return;
+    }
+    try {
+      audio.ensureContext();
+    } catch (error) {
+      console.warn('audio init failed', error);
+    }
+  }
+
+  function safePlay(kind) {
+    if (!audio || !audio.play) {
+      return;
+    }
+    try {
+      audio.play(kind);
+    } catch (error) {
+      console.warn('audio play failed', error);
+    }
+  }
+
+  function playFeedback() {
+    if (!appState.game || !appState.game.lastFeedback) {
+      return;
+    }
+    const tone = appState.game.lastFeedback.tone;
+    if (tone === 'battle') {
+      safePlay('battle');
+      return;
+    }
+    if (tone === 'event') {
+      safePlay('event');
+      return;
+    }
+    if (tone === 'bad') {
+      safePlay('bad');
+      return;
+    }
+    safePlay('action');
+  }
+
+  function render() {
+    syncFullscreen();
+    appState.audioEnabled = audio ? audio.isEnabled() : false;
+    ui.renderApp(root, appState, handlers);
+  }
+
+  function openGame(game) {
+    appState.game = game;
+    appState.screen = game.gameOver ? 'game-over' : 'game';
+    appState.currentPanel = 'civil';
+    appState.pendingBattleAction = null;
+    render();
+  }
+
+  const handlers = {
+    newGame: function () {
+      appState.screen = 'select-force';
+      appState.pendingBattleAction = null;
+      setNotice('');
+      render();
+    },
+    continueAuto: function () {
+      const saved = storageApi.loadGame('auto');
+      if (!saved) {
+        setNotice('最近进度为空。', 'bad');
+        appState.screen = 'title';
+        render();
+        safePlay('bad');
+        return;
+      }
+      setNotice('已读取最近进度。');
+      openGame(saved);
+      playFeedback();
+    },
+    backTitle: function () {
+      appState.screen = 'title';
+      appState.pendingBattleAction = null;
+      setNotice('');
+      render();
+    },
+    loadSlot: function (slotId) {
+      const saved = storageApi.loadGame(slotId);
+      if (!saved) {
+        setNotice('该槽位暂无内容。', 'bad');
+        appState.screen = 'title';
+        render();
+        safePlay('bad');
+        return;
+      }
+      setNotice('已读取手动槽位 ' + slotId + '。');
+      openGame(saved);
+      playFeedback();
+    },
+    chooseForce: function (forceId) {
+      safeEnsureAudio();
+      const game = gameApi.createNewGame(forceId);
+      try {
+        storageApi.saveGame('auto', game);
+      } catch (error) {
+        console.warn('auto save failed', error);
+      }
+      setNotice('新局已开。');
+      openGame(game);
+      playFeedback();
+    },
+    selectCity: function (cityId) {
+      if (!appState.game) {
+        return;
+      }
+      safeEnsureAudio();
+      appState.game = gameApi.applyAction(appState.game, { type: 'selectCity', cityId: cityId });
+      render();
+      safePlay('action');
+    },
+    setPanel: function (panelId) {
+      appState.currentPanel = panelId || 'civil';
+      render();
+      safePlay('action');
+    },
+    gameAction: function (action) {
+      if (!appState.game) {
+        return;
+      }
+      safeEnsureAudio();
+
+      if (action.type === 'attack') {
+        appState.pendingBattleAction = {
+          type: 'attack',
+          targetCityId: action.targetCityId,
+          targetForceId: action.targetForceId || null,
+        };
+        appState.screen = 'battle';
+        render();
+        safePlay('battle');
+        return;
+      }
+
+      try {
+        appState.game = action.type === 'endTurn' && gameApi.safeEndTurn
+          ? gameApi.safeEndTurn(appState.game)
+          : gameApi.applyAction(appState.game, action);
+      } catch (error) {
+        console.error(error);
+        setNotice('本月结算出现异常，已保留当前进度。请重试。', 'bad');
+        render();
+        safePlay('bad');
+        return;
+      }
+
+      if (action.type === 'endTurn') {
+        try {
+          storageApi.saveGame('auto', appState.game);
+        } catch (error) {
+          console.warn('auto save failed', error);
+        }
+        setNotice('月度结算已完成，并自动保存。');
+        safePlay('event');
+      } else {
+        setNotice('');
+        playFeedback();
+      }
+
+      if (appState.game.gameOver) {
+        try {
+          storageApi.saveGame('auto', appState.game);
+        } catch (error) {
+          console.warn('auto save failed', error);
+        }
+        appState.screen = 'game-over';
+      }
+
+      render();
+    },
+    startBattle: function () {
+      if (!appState.game || !appState.pendingBattleAction) {
+        return;
+      }
+      appState.screen = 'battlefield';
+      setNotice('');
+      render();
+      safePlay('battle');
+    },
+    resolveBattle: function () {
+      if (!appState.game || !appState.pendingBattleAction) {
+        return;
+      }
+      safeEnsureAudio();
+      try {
+        appState.game = gameApi.applyAction(appState.game, appState.pendingBattleAction);
+      } catch (error) {
+        console.error(error);
+        setNotice('战斗结算失败，请稍后再试。', 'bad');
+        appState.screen = 'game';
+        appState.pendingBattleAction = null;
+        render();
+        safePlay('bad');
+        return;
+      }
+      appState.pendingBattleAction = null;
+      appState.screen = appState.game.gameOver ? 'game-over' : 'game';
+      setNotice('');
+      playFeedback();
+      render();
+    },
+    cancelBattle: function () {
+      appState.pendingBattleAction = null;
+      appState.screen = 'game';
+      setNotice('已取消出征。');
+      render();
+      safePlay('action');
+    },
+    saveSlot: function (slotId) {
+      if (!appState.game) {
+        return;
+      }
+      try {
+        storageApi.saveGame(slotId, appState.game);
+        setNotice('已写入手动槽位 ' + slotId + '。');
+      } catch (error) {
+        setNotice('写入存档失败。', 'bad');
+        console.warn('save slot failed', error);
+      }
+      render();
+      safePlay('action');
+    },
+    toggleAudio: function () {
+      if (!audio) {
+        return;
+      }
+      let enabled = false;
+      try {
+        enabled = audio.toggle();
+      } catch (error) {
+        console.warn('audio toggle failed', error);
+      }
+      appState.audioEnabled = enabled;
+      setNotice(enabled ? '音效已开启。' : '音效已关闭。');
+      render();
+      if (enabled) {
+        safePlay('action');
+      }
+    },
+    toggleFullscreen: function () {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().then(function () {
+          syncFullscreen();
+          render();
+        }).catch(function () {
+          setNotice('浏览器未允许进入全屏。', 'bad');
+          render();
+          safePlay('bad');
+        });
+        return;
+      }
+      document.exitFullscreen().then(function () {
+        syncFullscreen();
+        render();
+      });
+    },
+  };
+
+  document.addEventListener('fullscreenchange', function () {
+    syncFullscreen();
+    render();
+  });
+
+  render();
 })();

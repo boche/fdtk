@@ -236,17 +236,28 @@
     if(!lines.length){ lines.push('诸城暂稳，可择一线进取。'); }
     return { title:'军师月报', summary:'今月我军据'+cities.length+'城，外有'+Object.values(state.forces).filter(function(force){ return force.alive && force.id !== state.playerForceId; }).length+'家敌对势力。', lines:lines };
   }
-  function buildWarEffects(state){
+  function isPlayerRelatedBattleLog(entry, filterContext){
+    if(!entry || !entry.text){ return false; }
+    const text = entry.text;
+    if(filterContext.playerForceName && text.indexOf(filterContext.playerForceName) >= 0){
+      return true;
+    }
+    return (filterContext.playerCityNames || []).some(function(cityName){
+      return text.indexOf(cityName) >= 0;
+    });
+  }
+
+  function buildWarEffects(state, filterContext){
     const names = Object.values(state.cities).map(function(city){ return city.nameZh; });
-    state.lastWarEffects = (state.logs || []).slice(0, 10).filter(function(entry){ return entry.tone === 'battle' || entry.text.indexOf('发兵') >= 0 || entry.text.indexOf('攻城') >= 0 || entry.text.indexOf('出兵') >= 0; }).map(function(entry){
+    state.lastWarEffects = (state.logs || []).slice(0, 10).filter(function(entry){ return (entry.tone === 'battle' || entry.text.indexOf('发兵') >= 0 || entry.text.indexOf('攻城') >= 0 || entry.text.indexOf('出兵') >= 0) && isPlayerRelatedBattleLog(entry, filterContext); }).map(function(entry){
       const hit = names.find(function(name){ return entry.text.indexOf(name) >= 0; });
       const city = hit ? Object.values(state.cities).find(function(item){ return item.nameZh === hit; }) : null;
       return { text:entry.text, cityId:city ? city.id : null, tone:'battle' };
     });
   }
 
-  function buildBattleReplay(state){
-    const battleLogs = (state.logs || []).filter(function(entry){ return entry.text.indexOf('【战斗演武】') >= 0; }).slice(0, 6).reverse();
+  function buildBattleReplay(state, filterContext){
+    const battleLogs = (state.logs || []).filter(function(entry){ return entry.text.indexOf('【战斗演武】') >= 0 && isPlayerRelatedBattleLog(entry, filterContext); }).slice(0, 6).reverse();
     if(!battleLogs.length){
       state.battleReplay = null;
       return;
@@ -265,6 +276,11 @@
   }
   function safeEndTurn(inputState){
     const state = clone(inputState);
+    const playerForce = state.forces[state.playerForceId] || null;
+    const filterContext = {
+      playerForceName: playerForce ? playerForce.nameZh : '',
+      playerCityNames: getForceCities(state, state.playerForceId).map(function(city){ return city.nameZh; })
+    };
     ensureCityMeta(state);
     state.pendingAttacks = state.pendingAttacks || [];
     runImprovedAiPhase(state);
@@ -280,8 +296,8 @@
     state.monthFlags = { civilUsed:false, strategicUsed:false };
     state.advisorReport = makeAdvisorReport(state);
     if(!state.gameOver){ setFeedback(state, state.advisorReport.title, state.advisorReport.summary + ' ' + state.advisorReport.lines.join(' '), 'event', state.selectedCityId); }
-    buildWarEffects(state);
-    buildBattleReplay(state);
+    buildWarEffects(state, filterContext);
+    buildBattleReplay(state, filterContext);
     return state;
   }
   function getAvailableActions(inputState){
@@ -338,7 +354,6 @@
     getForceOfficers: prev.getForceOfficers,
   };
 })();
-
 
 
 
