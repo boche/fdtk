@@ -244,6 +244,20 @@
       return { text:entry.text, cityId:city ? city.id : null, tone:'battle' };
     });
   }
+
+  function buildBattleReplay(state){
+    const battleLogs = (state.logs || []).filter(function(entry){ return entry.text.indexOf('【战斗演武】') >= 0; }).slice(0, 6).reverse();
+    if(!battleLogs.length){
+      state.battleReplay = null;
+      return;
+    }
+    state.battleReplay = {
+      visible: true,
+      index: 0,
+      items: battleLogs.map(function(entry, idx){ return { id: 'replay-'+idx, text: entry.text, time: entry.time }; })
+    };
+  }
+
   function normalizeSelectedCity(state){
     if(state.selectedCityId && state.cities[state.selectedCityId]){ return; }
     const playerCity = getForceCities(state, state.playerForceId)[0];
@@ -267,6 +281,7 @@
     state.advisorReport = makeAdvisorReport(state);
     if(!state.gameOver){ setFeedback(state, state.advisorReport.title, state.advisorReport.summary + ' ' + state.advisorReport.lines.join(' '), 'event', state.selectedCityId); }
     buildWarEffects(state);
+    buildBattleReplay(state);
     return state;
   }
   function getAvailableActions(inputState){
@@ -287,6 +302,22 @@
   function applyAction(inputState, action){
     if(action.type === 'endTurn'){
       return safeEndTurn(inputState);
+    }
+    if(action.type === 'battleReplayNext' || action.type === 'battleReplayClose'){
+      const nextState = clone(inputState);
+      if(!nextState.battleReplay){ return nextState; }
+      if(action.type === 'battleReplayClose'){
+        nextState.battleReplay.visible = false;
+        return nextState;
+      }
+      const total = nextState.battleReplay.items ? nextState.battleReplay.items.length : 0;
+      if(!total){ nextState.battleReplay.visible = false; return nextState; }
+      if(nextState.battleReplay.index >= total - 1){
+        nextState.battleReplay.visible = false;
+      } else {
+        nextState.battleReplay.index += 1;
+      }
+      return nextState;
     }
     const next = prev.applyAction(inputState, action);
     ensureCityMeta(next);

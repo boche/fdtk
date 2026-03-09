@@ -57,31 +57,44 @@
     const cat=category(officer);
     if(cat==='military'){return '<path d="M16 86 C18 66, 26 55, 36 55 C46 55, 54 66, 56 86" fill="'+colors.robe+'"/><path d="M24 61 L48 61 L48 86 L24 86 Z" fill="rgba(255,255,255,0.08)"/><path d="M29 58 L43 58 L46 67 L26 67 Z" fill="'+colors.trim+'" opacity="0.9"/>';}
     if(cat==='civil'){return '<path d="M16 86 C18 66, 26 55, 36 55 C46 55, 54 66, 56 86" fill="'+colors.robe+'"/><path d="M33 56 L39 56 L43 86 L29 86 Z" fill="'+colors.trim+'" opacity="0.7"/>';}
-    return '<path d="M16 86 C18 66, 26 55, 36 55 C46 55, 54 66, 56 86" fill="'+colors.robe+'"/><path d="M24 58 L48 58 L45 86 L27 86 Z" fill="'+colors.trim+'" opacity="0.55"/>';}
+    return '<path d="M16 86 C18 66, 26 55, 36 55 C46 55, 54 66, 56 86" fill="'+colors.robe+'"/><path d="M24 58 L48 58 L45 86 L27 86 Z" fill="'+colors.trim+'" opacity="0.55"/>';
   }
   function avatar(officer, force){
     const colors=palette(officer, force);
     const cat=category(officer);
     const brow=cat==='military'||cat==='ruler'?'#2b1c15':'#4d3629';
     const roleMark=cat==='civil'?'文':cat==='military'?'武':cat==='ruler'?'主':cat==='noble'?'宗':'士';
+    const scar=(officer.might||0)>=86?'<path d="M46 33 L42 44" stroke="rgba(130,70,58,0.55)" stroke-width="1.2" stroke-linecap="round"/>':'';
+    const pupil=(officer.intellect||0)>=82?1.9:2.2;
     return '<svg xmlns="http://www.w3.org/2000/svg" width="84" height="96" viewBox="0 0 84 96">'
-      +'<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+colors.bg1+'"/><stop offset="100%" stop-color="'+colors.bg2+'"/></linearGradient><radialGradient id="skin" cx="50%" cy="38%" r="60%"><stop offset="0%" stop-color="'+colors.skin1+'"/><stop offset="100%" stop-color="'+colors.skin2+'"/></radialGradient></defs>'
+      +'<defs>'
+      +'<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+colors.bg1+'"/><stop offset="100%" stop-color="'+colors.bg2+'"/></linearGradient>'
+      +'<radialGradient id="skin" cx="50%" cy="34%" r="66%"><stop offset="0%" stop-color="'+colors.skin1+'"/><stop offset="100%" stop-color="'+colors.skin2+'"/></radialGradient>'
+      +'<linearGradient id="robeShade" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="'+colors.robe+'"/><stop offset="100%" stop-color="#2a1d16"/></linearGradient>'
+      +'</defs>'
       +'<rect width="84" height="96" rx="14" fill="url(#bg)"/>'
-      +'<rect x="5" y="5" width="74" height="86" rx="12" fill="rgba(255,255,255,0.14)" stroke="rgba(84,54,33,0.18)"/>'
-      +body(officer, colors)
+      +'<rect x="5" y="5" width="74" height="86" rx="12" fill="rgba(255,255,255,0.11)" stroke="rgba(84,54,33,0.20)"/>'
+      +'<path d="M9 82 C18 73, 27 71, 42 71 C57 71, 66 73, 75 82 L75 92 L9 92 Z" fill="rgba(0,0,0,0.12)"/>'
+      +'<path d="M15 88 C16 66, 25 54, 36 54 C47 54, 56 66, 57 88" fill="url(#robeShade)"/>'
+      +'<path d="M29 57 L43 57 L46 88 L26 88 Z" fill="'+colors.trim+'" opacity="0.6"/>'
       +'<path d="'+facePath(officer)+'" fill="url(#skin)"/>'
-      +'<ellipse cx="29" cy="36" rx="2.2" ry="2.8" fill="#23170f"/>'
-      +'<ellipse cx="43" cy="36" rx="2.2" ry="2.8" fill="#23170f"/>'
-      +'<path d="M25 32 Q29 29 33 32" fill="none" stroke="'+brow+'" stroke-width="1.8" stroke-linecap="round"/>'
-      +'<path d="M39 32 Q43 29 47 32" fill="none" stroke="'+brow+'" stroke-width="1.8" stroke-linecap="round"/>'
-      +'<path d="M36 36 L34 46 L37 46" fill="none" stroke="#a87056" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>'
-      +'<path d="M31 49 Q36 53 41 49" fill="none" stroke="#8a5b49" stroke-width="1.5" stroke-linecap="round"/>'
-      +'<path d="M23 41 C21 38, 21 31, 23 27" fill="none" stroke="rgba(123,86,68,0.45)" stroke-width="1.2"/>'
-      +'<path d="M49 41 C51 38, 51 31, 49 27" fill="none" stroke="rgba(123,86,68,0.45)" stroke-width="1.2"/>'
+      +'<path d="M27 35 C27 30, 30 27, 34 27 C39 27, 41 30, 41 35" fill="rgba(255,255,255,0.1)"/>'
+      +'<ellipse cx="29" cy="36" rx="'+pupil+'" ry="2.7" fill="#21160f"/>'
+      +'<ellipse cx="43" cy="36" rx="'+pupil+'" ry="2.7" fill="#21160f"/>'
+      +'<circle cx="28.3" cy="35.2" r="0.6" fill="rgba(255,255,255,0.8)"/>'
+      +'<circle cx="42.3" cy="35.2" r="0.6" fill="rgba(255,255,255,0.8)"/>'
+      +'<path d="M25 32 Q29 29 33 32" fill="none" stroke="'+brow+'" stroke-width="1.9" stroke-linecap="round"/>'
+      +'<path d="M39 32 Q43 29 47 32" fill="none" stroke="'+brow+'" stroke-width="1.9" stroke-linecap="round"/>'
+      +'<path d="M36 36 L34 46 L37 46" fill="none" stroke="#a56c52" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>'
+      +'<path d="M31 49 Q36 53 41 49" fill="none" stroke="#815443" stroke-width="1.5" stroke-linecap="round"/>'
+      +'<path d="M22.5 40 C21 36, 21 30, 23.5 26" fill="none" stroke="rgba(123,86,68,0.40)" stroke-width="1.1"/>'
+      +'<path d="M49.5 40 C51 36, 51 30, 48.5 26" fill="none" stroke="rgba(123,86,68,0.40)" stroke-width="1.1"/>'
+      +scar
       +hair(officer)
       +hat(officer, colors)
       +beard(officer)
-      +'<circle cx="12" cy="12" r="8" fill="rgba(0,0,0,0.1)"/>'
+      +'<path d="M16 14 C26 10, 46 10, 58 16" fill="none" stroke="rgba(255,255,255,0.24)" stroke-width="1"/>'
+      +'<circle cx="12" cy="12" r="8" fill="rgba(0,0,0,0.12)"/>'
       +'<text x="12" y="16" text-anchor="middle" font-size="10" font-family="Microsoft YaHei, PingFang SC, sans-serif" fill="#fff">'+e(roleMark)+'</text>'
       +'</svg>';
   }
