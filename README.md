@@ -1,4 +1,4 @@
-﻿# 藩镇图开
+# 藩镇图开
 
 一个五代十国背景的极简中文版单机网页游戏原型。
 
@@ -7,24 +7,29 @@
 由于当前环境缺少 Node/npm，这个版本采用原生 HTML/CSS/JavaScript 实现。
 
 可直接打开：
-- `C:\Users\aimbo\Documents\fdtk\index.html`
+- C:\Users\aimbo\Documents\fdtk\index.html
 
 如果浏览器限制本地脚本加载，也可以用任意静态文件服务器指向该目录。
 
 ## 当前内容
 
-- 1 个剧本：`923：后唐开国`
+- 1 个剧本：923：后唐开国
 - 10 座城
 - 5 个势力
 - 50 名人物
 - 月度经营、任命、招揽、自动战斗、停战、存档
 
+## 开发约定
+
+- 开发守则见 [DEVELOPMENT.md](./DEVELOPMENT.md)
+- 每次新增功能后，必须同时验证“新功能可用”和“旧功能未崩”
+
 ## 目录
 
-- `src/data`：剧本与中文文案
-- `src/core`：规则与存档
-- `src/ui`：渲染
-- `src/main.js`：入口
+- src/data：剧本与中文文案
+- src/core：规则与存档
+- src/ui：渲染
+- src/main.js：入口
 
 ## 更新记录
 
