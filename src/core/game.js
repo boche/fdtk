@@ -111,6 +111,26 @@
     return Math.max(min, Math.min(max, value));
   }
 
+  const UNIT_ADVANTAGE = {
+    infantry: { infantry: 1, cavalry: 0.88, archer: 1.12 },
+    cavalry: { infantry: 1.12, cavalry: 1, archer: 0.9 },
+    archer: { infantry: 0.92, cavalry: 1.12, archer: 1 },
+  };
+
+  const TERRAIN_ADJUST = {
+    plain: { infantry: 1, cavalry: 1.08, archer: 1 },
+    mountain: { infantry: 1.08, cavalry: 0.82, archer: 1.06 },
+    water: { infantry: 0.9, cavalry: 0.75, archer: 1.14 },
+  };
+
+  const SKILL_EFFECTS = {
+    突击: { attack: 0.1, defense: 0 },
+    火计: { attack: 0.08, defense: 0 },
+    治军: { attack: 0.05, defense: 0.05 },
+    坚守: { attack: 0, defense: 0.1 },
+    统筹: { attack: 0.04, defense: 0.04 },
+  };
+
   function consumeTruces(state) {
     Object.values(state.forces).forEach(function (force) {
       Object.keys(force.truces).forEach(function (otherForceId) {
@@ -145,6 +165,8 @@
         city.order = clamp(city.order + 2, 35, 100);
         city.loyalty = clamp(city.loyalty + 1, 30, 100);
         city.defense = clamp(city.defense + 1, 30, 100);
+        city.training = clamp((city.training || 65) - 1, 35, 100);
+        city.morale = clamp((city.morale || 65) - 1, 35, 100);
       });
 
       force.gold = clamp(force.gold + goldIncome - Math.max(8, cities.length * 5), 0, 9999);
@@ -307,6 +329,7 @@
       selectedCityId: scenario.forces.find(function (force) { return force.id === forceId; }).capitalCityId,
     };
 
+    ensureBattleFields(initialState);
     createLog(initialState, '你以' + getForceName(initialState, forceId) + '之主的身份入局，乱世自此开卷。', 'event');
     triggerEvents(initialState);
     return initialState;
@@ -415,8 +438,10 @@
     force.gold -= 36;
     force.food -= 42;
     city.troops += gain;
+    city.training = clamp(city.training + 4 + Math.floor((leadOfficer ? leadOfficer.leadership : 55) / 18), 40, 100);
+    city.morale = clamp(city.morale + 3, 35, 100);
     changeCitySpirit(city, -4, -2);
-    createLog(state, getForceName(state, forceId) + '在' + city.nameZh + '整伍征兵，新增兵力' + gain + '。', isAi ? 'ai' : 'normal');
+    createLog(state, getForceName(state, forceId) + '在' + city.nameZh + '整伍征兵，新增兵力' + gain + '，训练度与士气同步提升。', isAi ? 'ai' : 'normal');
     return true;
   }
 
@@ -476,6 +501,10 @@
       targetCityId,
       commanderId: commander ? commander.id : null,
       troops: committed,
+      unitType: commander && commander.unitType ? commander.unitType : 'infantry',
+      specialSkill: commander && commander.specialSkill ? commander.specialSkill : '坚守',
+      originMorale: fromCity.morale || 65,
+      originTraining: fromCity.training || 65,
     });
     createLog(state, getForceName(state, forceId) + '自' + fromCity.nameZh + '发兵攻向' + targetCity.nameZh + '。', isAi ? 'ai' : 'normal');
     return true;
@@ -492,6 +521,29 @@
     targetForce.truces[forceId] = 3;
     createLog(state, getForceName(state, forceId) + '与' + getForceName(state, targetForceId) + '议定三月停战。', isAi ? 'ai' : 'normal');
     return true;
+  }
+
+  function getUnitType(officer) {
+    return officer && officer.unitType ? officer.unitType : 'infantry';
+  }
+
+  function getSkillEffect(officer, mode) {
+    if (!officer || !officer.specialSkill || !SKILL_EFFECTS[officer.specialSkill]) {
+      return 1;
+    }
+    return 1 + (SKILL_EFFECTS[officer.specialSkill][mode] || 0);
+  }
+
+  function getTerrainFactor(city, unitType) {
+    const terrain = city && city.terrain ? city.terrain : 'plain';
+    const table = TERRAIN_ADJUST[terrain] || TERRAIN_ADJUST.plain;
+    return table[unitType] || 1;
+  }
+
+  function getUnitCounterFactor(attackerType, defenderType) {
+    return UNIT_ADVANTAGE[attackerType] && UNIT_ADVANTAGE[attackerType][defenderType]
+      ? UNIT_ADVANTAGE[attackerType][defenderType]
+      : 1;
   }
 
   function rerouteOfficersAfterCapture(state, loserForceId, cityId, winnerForceId) {
@@ -542,20 +594,40 @@
 
       const commander = battle.commanderId ? state.officers[battle.commanderId] : null;
       const defenderOfficer = getBestOfficer(getCityOfficers(state, targetCity.id, targetCity.ownerForceId), 'leadership');
+      const attackerType = battle.unitType || getUnitType(commander);
+      const defenderType = getUnitType(defenderOfficer);
       const foodEnough = state.forces[battle.attackerForceId].food >= Math.floor(battle.troops / 3);
-      const attackerScore = battle.troops * (0.72 + (commander ? commander.leadership : 60) / 120 + (commander ? commander.might : 55) / 240) * (foodEnough ? 1 : 0.78) * rollInRange(state, 0.9, 1.08);
-      const defenderScore = targetCity.troops * (0.74 + (defenderOfficer ? defenderOfficer.leadership : 55) / 120 + targetCity.defense / 150) * rollInRange(state, 0.92, 1.1);
+      const moraleFactorAtk = 0.8 + clamp((battle.originMorale || 65) / 100, 0.35, 1);
+      const moraleFactorDef = 0.8 + clamp((targetCity.morale || 65) / 100, 0.35, 1);
+      const trainingFactorAtk = 0.82 + clamp((battle.originTraining || 65) / 120, 0.3, 1);
+      const trainingFactorDef = 0.82 + clamp((targetCity.training || 65) / 120, 0.3, 1);
+      const counterAtk = getUnitCounterFactor(attackerType, defenderType);
+      const counterDef = getUnitCounterFactor(defenderType, attackerType);
+      const terrainAtk = getTerrainFactor(targetCity, attackerType);
+      const terrainDef = getTerrainFactor(targetCity, defenderType);
+      const skillAtk = getSkillEffect(commander, 'attack');
+      const skillDef = getSkillEffect(defenderOfficer, 'defense');
+
+      const attackerScore = battle.troops * (0.72 + (commander ? commander.leadership : 60) / 120 + (commander ? commander.might : 55) / 240) * (foodEnough ? 1 : 0.78) * moraleFactorAtk * trainingFactorAtk * counterAtk * terrainAtk * skillAtk * rollInRange(state, 0.9, 1.08);
+      const defenderScore = targetCity.troops * (0.74 + (defenderOfficer ? defenderOfficer.leadership : 55) / 120 + targetCity.defense / 150) * moraleFactorDef * trainingFactorDef * counterDef * terrainDef * skillDef * rollInRange(state, 0.92, 1.1);
 
       if (foodEnough) {
         state.forces[battle.attackerForceId].food = clamp(state.forces[battle.attackerForceId].food - Math.floor(battle.troops / 3), 0, 9999);
       }
 
+      createLog(
+        state,
+        '【战斗演武】' + (commander ? commander.nameZh : '无名将') + '率' + battle.troops + '人（' + unitTypeLabel(attackerType) + '）进攻' + targetCity.nameZh + '（' + terrainLabel(targetCity.terrain || 'plain') + '），守将兵种' + unitTypeLabel(defenderType) + '，士气/训练 ' + (battle.originMorale || 65) + '/' + (battle.originTraining || 65) + ' 对 ' + (targetCity.morale || 65) + '/' + (targetCity.training || 65) + '。',
+        'battle'
+      );
+
       if (attackerScore > defenderScore) {
         const attackerLoss = Math.floor(battle.troops * rollInRange(state, 0.32, 0.5));
-        const defenderLoss = Math.floor(targetCity.troops * rollInRange(state, 0.55, 0.82));
         const oldOwner = targetCity.ownerForceId;
         targetCity.ownerForceId = battle.attackerForceId;
         targetCity.troops = Math.max(70, battle.troops - attackerLoss);
+        targetCity.training = clamp((battle.originTraining || 65) - 8, 35, 100);
+        targetCity.morale = clamp((battle.originMorale || 65) + 6, 35, 100);
         changeCitySpirit(targetCity, -10, -12);
         targetCity.defense = clamp(targetCity.defense - 9, 30, 100);
         if (commander) {
@@ -568,12 +640,15 @@
           return;
         }
         state.cities[battle.fromCityId].troops = clamp(state.cities[battle.fromCityId].troops, 40, 9999);
+        fromCity.morale = clamp((fromCity.morale || 65) + 2, 35, 100);
       } else {
         const attackerLoss = Math.floor(battle.troops * rollInRange(state, 0.5, 0.7));
         const defenderLoss = Math.floor(targetCity.troops * rollInRange(state, 0.22, 0.4));
         const survivors = Math.max(0, battle.troops - attackerLoss);
         targetCity.troops = Math.max(50, targetCity.troops - defenderLoss);
         state.cities[battle.fromCityId].troops += Math.floor(survivors * 0.45);
+        targetCity.morale = clamp((targetCity.morale || 65) - 2, 35, 100);
+        fromCity.morale = clamp((fromCity.morale || 65) - 5, 35, 100);
         createLog(state, formatters.battleLog(getForceName(state, battle.attackerForceId), targetCity.nameZh, '攻城受挫，军势退回原镇。'), 'battle');
       }
     });
@@ -675,8 +750,25 @@
     return state;
   }
 
+  function ensureBattleFields(state) {
+    Object.values(state.cities).forEach(function (city) {
+      if (!city.terrain) city.terrain = 'plain';
+      if (!city.training) city.training = 65;
+      if (!city.morale) city.morale = 65;
+    });
+    Object.values(state.officers).forEach(function (officer) {
+      if (!officer.unitType) {
+        officer.unitType = officer.might >= 75 ? 'cavalry' : officer.intellect >= 78 ? 'archer' : 'infantry';
+      }
+      if (!officer.specialSkill) {
+        officer.specialSkill = officer.leadership >= 85 ? '治军' : officer.might >= 80 ? '突击' : officer.intellect >= 82 ? '火计' : officer.politics >= 84 ? '统筹' : '坚守';
+      }
+    });
+  }
+
   function applyAction(state, action) {
     const nextState = clone(state);
+    ensureBattleFields(nextState);
     const selectedCity = nextState.cities[nextState.selectedCityId];
 
     if (action.type === 'selectCity') {
@@ -747,6 +839,19 @@
     return nextState;
   }
 
+
+  function unitTypeLabel(unitType) {
+    if (unitType === 'cavalry') return '骑兵';
+    if (unitType === 'archer') return '弓兵';
+    return '步兵';
+  }
+
+  function terrainLabel(terrain) {
+    if (terrain === 'mountain') return '山地';
+    if (terrain === 'water') return '水域';
+    return '平原';
+  }
+
   function getForceOverview(state, forceId) {
     const force = state.forces[forceId];
     const cities = getForceCities(state, forceId);
@@ -761,10 +866,22 @@
 
   function getCityView(state, cityId) {
     const city = state.cities[cityId];
+    const officers = getCityOfficers(state, cityId).map(function (officer) {
+      return Object.assign({}, officer, { unitTypeLabel: unitTypeLabel(officer.unitType) });
+    });
+    const wanderers = getFreeOfficersInCity(state, cityId).map(function (officer) {
+      return Object.assign({}, officer, { unitTypeLabel: unitTypeLabel(officer.unitType) });
+    });
+    const cityWithLabel = Object.assign({}, city, {
+      terrain: city.terrain || 'plain',
+      training: city.training || 65,
+      morale: city.morale || 65,
+      terrainLabel: terrainLabel(city.terrain || 'plain'),
+    });
     return {
-      city: city,
-      officers: getCityOfficers(state, cityId),
-      wanderers: getFreeOfficersInCity(state, cityId),
+      city: cityWithLabel,
+      officers: officers,
+      wanderers: wanderers,
       frontierPressure: city.neighbors.reduce(function (sum, neighborId) {
         const neighbor = state.cities[neighborId];
         if (!neighbor || neighbor.ownerForceId === city.ownerForceId) {

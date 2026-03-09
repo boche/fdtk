@@ -3,12 +3,43 @@
     return { id, nameZh, color, capitalCityId, rulerOfficerId, gold, food, truces: {}, alive: true };
   }
 
-  function city(id, nameZh, x, y, ownerForceId, neighbors, troops, order, defense, loyalty, development) {
-    return { id, nameZh, x, y, ownerForceId, neighbors, troops, order, defense, loyalty, development };
+  function city(id, nameZh, x, y, ownerForceId, neighbors, troops, order, defense, loyalty, development, terrain, training, morale) {
+    return {
+      id,
+      nameZh,
+      x,
+      y,
+      ownerForceId,
+      neighbors,
+      troops,
+      order,
+      defense,
+      loyalty,
+      development,
+      terrain: terrain || 'plain',
+      training: training || 65,
+      morale: morale || 68,
+    };
   }
 
-  function officer(id, nameZh, forceId, cityId, role, leadership, might, intellect, politics, loyalty, assigned) {
-    return { id, nameZh, forceId, cityId, role, leadership, might, intellect, politics, loyalty, assigned };
+  function officer(id, nameZh, forceId, cityId, role, leadership, might, intellect, politics, loyalty, assigned, unitType, specialSkill) {
+    const resolvedUnitType = unitType || (might >= 75 ? 'cavalry' : intellect >= 78 ? 'archer' : 'infantry');
+    const resolvedSpecialSkill = specialSkill || (leadership >= 85 ? '治军' : might >= 80 ? '突击' : intellect >= 82 ? '火计' : politics >= 84 ? '统筹' : '坚守');
+    return {
+      id,
+      nameZh,
+      forceId,
+      cityId,
+      role,
+      leadership,
+      might,
+      intellect,
+      politics,
+      loyalty,
+      assigned,
+      unitType: resolvedUnitType,
+      specialSkill: resolvedSpecialSkill,
+    };
   }
 
   const forces = [
@@ -20,16 +51,16 @@
   ];
 
   const cities = [
-    city('kaifeng', '开封', 365, 210, 'houtang', ['luoyang', 'weizhou', 'yangzhou'], 260, 72, 64, 70, 3),
-    city('luoyang', '洛阳', 290, 220, 'houtang', ['kaifeng', 'taiyuan', 'chengdu'], 320, 78, 70, 76, 4),
-    city('taiyuan', '太原', 260, 118, 'houtang', ['luoyang', 'weizhou', 'youzhou'], 280, 75, 68, 73, 3),
-    city('weizhou', '魏州', 362, 132, 'houtang', ['kaifeng', 'taiyuan', 'youzhou'], 240, 68, 61, 66, 3),
-    city('youzhou', '幽州', 450, 84, 'houtang', ['weizhou', 'taiyuan'], 220, 65, 58, 64, 2),
-    city('chengdu', '成都', 122, 286, 'wu', ['luoyang', 'yangzhou'], 210, 74, 62, 71, 4),
-    city('yangzhou', '扬州', 442, 266, 'wu', ['kaifeng', 'chengdu', 'hangzhou', 'fuzhou'], 260, 78, 60, 75, 4),
-    city('hangzhou', '杭州', 516, 326, 'wuyue', ['yangzhou', 'fuzhou', 'guangzhou'], 180, 80, 68, 79, 4),
-    city('fuzhou', '福州', 590, 372, 'min', ['yangzhou', 'hangzhou', 'guangzhou'], 170, 76, 57, 77, 3),
-    city('guangzhou', '广州', 508, 474, 'nanhan', ['hangzhou', 'fuzhou'], 240, 74, 65, 74, 4),
+    city('kaifeng', '开封', 365, 210, 'houtang', ['luoyang', 'weizhou', 'yangzhou'], 260, 72, 64, 70, 3, 'plain', 72, 74),
+    city('luoyang', '洛阳', 290, 220, 'houtang', ['kaifeng', 'taiyuan', 'chengdu'], 320, 78, 70, 76, 4, 'plain', 76, 78),
+    city('taiyuan', '太原', 260, 118, 'houtang', ['luoyang', 'weizhou', 'youzhou'], 280, 75, 68, 73, 3, 'mountain', 74, 75),
+    city('weizhou', '魏州', 362, 132, 'houtang', ['kaifeng', 'taiyuan', 'youzhou'], 240, 68, 61, 66, 3, 'plain', 66, 68),
+    city('youzhou', '幽州', 450, 84, 'houtang', ['weizhou', 'taiyuan'], 220, 65, 58, 64, 2, 'mountain', 69, 67),
+    city('chengdu', '成都', 122, 286, 'wu', ['luoyang', 'yangzhou'], 210, 74, 62, 71, 4, 'mountain', 70, 71),
+    city('yangzhou', '扬州', 442, 266, 'wu', ['kaifeng', 'chengdu', 'hangzhou', 'fuzhou'], 260, 78, 60, 75, 4, 'plain', 73, 75),
+    city('hangzhou', '杭州', 516, 326, 'wuyue', ['yangzhou', 'fuzhou', 'guangzhou'], 180, 80, 68, 79, 4, 'water', 75, 77),
+    city('fuzhou', '福州', 590, 372, 'min', ['yangzhou', 'hangzhou', 'guangzhou'], 170, 76, 57, 77, 3, 'water', 68, 74),
+    city('guangzhou', '广州', 508, 474, 'nanhan', ['hangzhou', 'fuzhou'], 240, 74, 65, 74, 4, 'water', 72, 73),
   ];
 
   const officers = [
@@ -120,4 +151,3 @@
     events,
   };
 })();
-

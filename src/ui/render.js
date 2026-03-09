@@ -193,7 +193,7 @@
                 <h3>${escapeHtml(TEXT.labels.officers)}</h3>
                 <div class="list-grid">
                   ${cityView.officers.map(function (officer) {
-                    return `<div class="city-officer">${escapeHtml(officer.nameZh)} · 统${officer.leadership} 政${officer.politics}</div>`;
+                    return `<div class="city-officer">${escapeHtml(officer.nameZh)} · 统${officer.leadership} 政${officer.politics} · ${escapeHtml(TEXT.labels.unitType)}:${escapeHtml(officer.unitTypeLabel || (officer.unitType === 'cavalry' ? '骑兵' : officer.unitType === 'archer' ? '弓兵' : '步兵'))} · ${escapeHtml(TEXT.labels.specialSkill)}:${escapeHtml(officer.specialSkill || '坚守')}</div>`;
                   }).join('') || '<div class="city-officer">暂无驻城人物</div>'}
                 </div>
               </div>
@@ -201,7 +201,7 @@
                 <h3>${escapeHtml(TEXT.labels.wanderers)}</h3>
                 <div class="list-grid">
                   ${cityView.wanderers.map(function (officer) {
-                    return `<div class="city-officer">${escapeHtml(officer.nameZh)} · 智${officer.intellect} 政${officer.politics}</div>`;
+                    return `<div class="city-officer">${escapeHtml(officer.nameZh)} · 智${officer.intellect} 政${officer.politics} · ${escapeHtml(TEXT.labels.unitType)}:${escapeHtml(officer.unitTypeLabel || (officer.unitType === 'cavalry' ? '骑兵' : officer.unitType === 'archer' ? '弓兵' : '步兵'))} · ${escapeHtml(TEXT.labels.specialSkill)}:${escapeHtml(officer.specialSkill || '坚守')}</div>`;
                   }).join('') || '<div class="city-officer">暂无游士</div>'}
                 </div>
               </div>

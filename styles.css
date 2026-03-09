@@ -1575,3 +1575,56 @@ body {
     grid-template-columns: 184px minmax(0, 1fr) 400px;
   }
 }
+
+.battle-replay-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 12, 8, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.battle-replay-card {
+  width: min(760px, 90vw);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 235, 190, 0.55);
+  background: linear-gradient(160deg, rgba(53, 28, 18, 0.96), rgba(24, 14, 11, 0.96));
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  color: #f7e7c4;
+  padding: 18px 20px;
+}
+
+.battle-replay-head {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.battle-replay-time {
+  opacity: 0.86;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.battle-replay-text {
+  line-height: 1.7;
+  min-height: 72px;
+}
+
+.battle-replay-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.battle-replay-actions button {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 235, 190, 0.5);
+  background: rgba(133, 84, 38, 0.45);
+  color: #f8e9c8;
+  padding: 8px 14px;
+}
