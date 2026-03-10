@@ -621,7 +621,11 @@
         'battle'
       );
 
-      if (attackerScore > defenderScore) {
+      const tacticalWin = battle.tacticalResult === 'win';
+      const tacticalLose = battle.tacticalResult === 'lose';
+      const attackerWon = tacticalWin || (!tacticalLose && attackerScore > defenderScore);
+
+      if (attackerWon) {
         const attackerLoss = Math.floor(battle.troops * rollInRange(state, 0.32, 0.5));
         const oldOwner = targetCity.ownerForceId;
         targetCity.ownerForceId = battle.attackerForceId;

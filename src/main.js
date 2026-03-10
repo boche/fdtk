@@ -64,13 +64,44 @@
   }
 
   function movementByType(type) {
-    if (type === 'cavalry') return 3;
-    if (type === 'archer') return 2;
-    return 2;
+    if (type === 'cavalry') return 2;
+    if (type === 'archer') return 1;
+    return 1;
   }
 
   function rangeByType(type) {
     return type === 'archer' ? 2 : 1;
+  }
+
+  function unitTypeLabel(type) {
+    if (type === 'cavalry') return '骑兵';
+    if (type === 'archer') return '弓兵';
+    return '步兵';
+  }
+
+  function terrainLabel(terrain) {
+    if (terrain === 'mountain') return '山地';
+    if (terrain === 'forest') return '林地';
+    if (terrain === 'wall') return '城墙';
+    return '平原';
+  }
+
+  function terrainIcon(terrain) {
+    if (terrain === 'mountain') return '⛰';
+    if (terrain === 'forest') return '🌲';
+    if (terrain === 'wall') return '🧱';
+    return '🌾';
+  }
+
+  function avatarGlyph(name) {
+    if (!name) return '将';
+    return String(name).slice(-1);
+  }
+
+  function syncUnitHpByTroops(unit) {
+    if (!unit) return;
+    const base = Math.max(1, unit.maxTroops || unit.troops || 1);
+    unit.hp = clamp(Math.round(unit.troops / base * 100), 0, 100);
   }
 
   function createTerrain(cols, rows) {
@@ -102,6 +133,7 @@
       y: clamp(1 + idx * 2, 1, 4),
       hp: 100,
       troops: Math.max(80, Math.floor((side === 'attacker' ? fromTroops : toTroops) / 3)),
+      maxTroops: Math.max(80, Math.floor((side === 'attacker' ? fromTroops : toTroops) / 3)),
       leadership: officer.leadership || 60,
       might: officer.might || 60,
       unitType: type,
@@ -147,12 +179,33 @@
     return { atk: 0, def: 0.16, label: '坚守' };
   }
 
+  function getCell(tb, unit) {
+    return tb.grid[unit.y] && tb.grid[unit.y][unit.x] ? tb.grid[unit.y][unit.x] : null;
+  }
+
   function terrainFactor(tb, unit, isDefense) {
-    const cell = tb.grid[unit.y] && tb.grid[unit.y][unit.x];
+    const cell = getCell(tb, unit);
     if (!cell) return 1;
-    if (cell.terrain === 'forest') return unit.unitType === 'archer' ? 1.12 : 0.96;
-    if (cell.terrain === 'mountain') return unit.unitType === 'cavalry' ? 0.82 : 1.06;
-    if (cell.terrain === 'wall') return isDefense ? 1.25 : 0.84;
+    if (cell.terrain === 'forest') {
+      if (unit.unitType === 'archer') return isDefense ? 1.22 : 1.12;
+      return isDefense ? 1.12 : 0.92;
+    }
+    if (cell.terrain === 'mountain') {
+      if (unit.unitType === 'cavalry') return isDefense ? 0.82 : 0.78;
+      return isDefense ? 1.16 : 1.05;
+    }
+    if (cell.terrain === 'wall') {
+      return isDefense ? 1.35 : 0.78;
+    }
+    return 1;
+  }
+
+  function terrainCounterFactor(tb, unit) {
+    const cell = getCell(tb, unit);
+    if (!cell) return 1;
+    if (cell.terrain === 'forest') return 1.08;
+    if (cell.terrain === 'mountain') return 1.12;
+    if (cell.terrain === 'wall') return 1.18;
     return 1;
   }
 
@@ -160,12 +213,20 @@
     const atkBuff = attacker.buff ? attacker.buff.atk : 0;
     const defBuff = defender.buff ? defender.buff.def : 0;
     const amount = Math.max(8, Math.floor((12 + attacker.might / 10 + attacker.leadership / 14) * terrainFactor(tb, attacker, false) / Math.max(0.75, terrainFactor(tb, defender, true)) * (1 + atkBuff) / (1 + defBuff)));
-    defender.hp = clamp(defender.hp - amount, 0, 100);
     const troopLoss = Math.max(30, Math.floor(defender.troops * amount / 220));
+    const counterLoss = Math.max(10, Math.floor(troopLoss * (0.28 + defender.might / 420) * Math.max(0.75, terrainFactor(tb, defender, true)) * terrainCounterFactor(tb, defender)));
     defender.troops = Math.max(0, defender.troops - troopLoss);
-    if (attacker.side === 'attacker') tb.defenderLoss += troopLoss;
-    else tb.attackerLoss += troopLoss;
-    tb.logs.unshift(attacker.name + '攻击' + defender.name + '造成' + amount + '伤害。');
+    attacker.troops = Math.max(0, attacker.troops - counterLoss);
+    syncUnitHpByTroops(defender);
+    syncUnitHpByTroops(attacker);
+    if (attacker.side === 'attacker') {
+      tb.defenderLoss += troopLoss;
+      tb.attackerLoss += counterLoss;
+    } else {
+      tb.attackerLoss += troopLoss;
+      tb.defenderLoss += counterLoss;
+    }
+    tb.logs.unshift(attacker.name + '攻击' + defender.name + '（' + terrainLabel(getCell(tb, defender) ? getCell(tb, defender).terrain : 'plain') + '），敌损' + troopLoss + '，我损' + counterLoss + '。');
     attacker.acted = true;
     attacker.buff = null;
   }
@@ -179,14 +240,22 @@
         const cell = tb.grid[y][x];
         const unit = getUnitAt(tb, x, y);
         cells += '<button class="tb-cell terrain-' + cell.terrain + '" data-cell-x="' + x + '" data-cell-y="' + y + '">'
+          + '<div class="terrain-art"><b>' + terrainIcon(cell.terrain) + '</b><span>' + terrainLabel(cell.terrain) + '</span></div>'
           + (cell.terrain === 'wall' ? '<em>墙' + cell.wallHp + '</em>' : '')
-          + (unit ? '<div class="tb-unit ' + (unit.side === 'attacker' ? 'ally' : 'enemy') + (unit.acted ? ' acted' : '') + '"><strong>' + unit.name + '</strong><span>' + unit.unitType + ' HP' + unit.hp + '</span></div>' : '')
+          + (unit ? '<div class="tb-unit ' + (unit.side === 'attacker' ? 'ally' : 'enemy') + (unit.acted ? ' acted' : '') + '"><div class="tb-avatar">' + avatarGlyph(unit.name) + '</div><strong>' + unit.name + '</strong><span>' + unitTypeLabel(unit.unitType) + ' 兵力' + unit.troops + '（战意' + unit.hp + '%）</span><small>特技：' + unit.skill + (unit.buff ? '（已发动）' : '（未发动）') + '</small></div>' : '')
           + '</button>';
       }
     }
     const selected = tb.selectedUnitId ? getUnitById(tb, tb.selectedUnitId) : null;
+    const leadAtk = tb.attackerUnits[0] || null;
+    const leadDef = tb.defenderUnits[0] || null;
     root.innerHTML = '<div class="screen tactical-screen"><section class="tactical-shell">'
-      + '<div class="tactical-top"><h2>战旗攻城（第' + tb.round + '回合）</h2><div>行动方：' + (tb.currentTurn === 'attacker' ? '玩家' : 'AI') + '</div><div>攻方损失' + tb.attackerLoss + ' · 守方损失' + tb.defenderLoss + ' · 墙体破坏' + tb.wallDamage + '</div></div>'
+      + '<div class="tactical-top"><h2>战旗攻城（第' + tb.round + '回合）</h2><div>行动方：' + (tb.currentTurn === 'attacker' ? '玩家' : '守军') + '</div><div>攻方损失' + tb.attackerLoss + ' · 守方损失' + tb.defenderLoss + ' · 墙体破坏' + tb.wallDamage + '</div></div>'
+      + '<div class="tb-commanders">'
+      + '<div class="tb-commander ally"><div class="tb-portrait">' + avatarGlyph(leadAtk ? leadAtk.name : '将') + '</div><div><strong>' + (leadAtk ? leadAtk.name : '攻方主将') + '</strong><span>特技：' + (leadAtk ? leadAtk.skill : '突击') + '</span></div></div>'
+      + '<div class="tb-commander enemy"><div class="tb-portrait">' + avatarGlyph(leadDef ? leadDef.name : '将') + '</div><div><strong>' + (leadDef ? leadDef.name : '守方主将') + '</strong><span>特技：' + (leadDef ? leadDef.skill : '坚守') + '</span></div></div>'
+      + '</div>'
+      + '<div class="tb-legend"><span>🌾 平原：无修正</span><span>⛰ 山地：步弓防御↑ 骑兵攻防↓</span><span>🌲 林地：弓兵攻防↑ 近战攻击↓</span><span>🧱 城墙：守军防反↑ 攻城受限</span></div>'
       + '<div class="tb-board">' + cells + '</div>'
       + '<div class="tactical-actions">'
       + '<button data-view-action="tb-skill" ' + (!selected || selected.side !== 'attacker' || selected.skillUsed || selected.acted || tb.currentTurn !== 'attacker' ? 'disabled' : '') + '>释放技能</button>'
@@ -223,7 +292,7 @@
       if (!u.skillUsed && u.hp < 70) {
         u.buff = skillBuff(u.skill);
         u.skillUsed = true;
-        tb.logs.unshift(u.name + '发动技能【' + u.skill + '】。');
+        tb.logs.unshift(u.name + '发动技能【' + u.skill + '】，攻守临时提升。');
       }
       if (dist(u, target) <= u.range) {
         attack(tb, u, target);
@@ -253,7 +322,7 @@
     const fromCity = state.cities && state.selectedCityId ? state.cities[state.selectedCityId] : null;
     const targetCity = state.cities && action && action.targetCityId ? state.cities[action.targetCityId] : null;
     if (!fromCity || !targetCity) return { rounds: [], currentRound: 0, finished: true, summary: '战场情报不足。' };
-    return { rounds: [{ title: '战棋部署', text: '已进入战棋模式：玩家控制攻方，AI控制守方。' }], currentRound: 0, finished: false };
+    return { rounds: [{ title: '战棋部署', text: '已进入战棋模式：玩家控制攻方，守军自动应战。' }], currentRound: 0, finished: false };
   }
 
   function openGame(game) {
@@ -356,7 +425,7 @@
       if (!tb || !unit || unit.side !== 'attacker' || unit.skillUsed || unit.acted || tb.currentTurn !== 'attacker') return;
       unit.buff = skillBuff(unit.skill);
       unit.skillUsed = true;
-      tb.logs.unshift(unit.name + '发动技能【' + unit.skill + '】。');
+      tb.logs.unshift(unit.name + '发动技能【' + unit.skill + '】，攻守临时提升。');
       render();
     },
     tacticalEndUnit: function () {
@@ -384,6 +453,10 @@
           targetCity.troops = Math.max(90, targetCity.troops - Math.floor(tb.defenderLoss * 0.7));
           targetCity.defense = clamp(targetCity.defense - Math.floor(tb.wallDamage / 28), 10, 100);
         }
+        const attackerLeft = tb.attackerUnits.reduce(function (sum, unit) { return sum + Math.max(0, unit.troops); }, 0);
+        const defenderLeft = tb.defenderUnits.reduce(function (sum, unit) { return sum + Math.max(0, unit.troops); }, 0);
+        const breachBonus = tb.wallDamage >= 110 ? 1.12 : 1;
+        appState.pendingBattleAction.tacticalResult = (attackerLeft * breachBonus > defenderLeft * 1.08) ? 'win' : 'lose';
       }
       safeEnsureAudio();
       try {
