@@ -229,6 +229,32 @@
     tb.logs.unshift(attacker.name + '攻击' + defender.name + '（' + terrainLabel(getCell(tb, defender) ? getCell(tb, defender).terrain : 'plain') + '），敌损' + troopLoss + '，我损' + counterLoss + '。');
     attacker.acted = true;
     attacker.buff = null;
+    checkTacticalAutoEnd(tb);
+  }
+
+  function livingUnits(units) {
+    return units.filter(function (unit) { return unit.hp > 0 && unit.troops > 0; });
+  }
+
+  function buildTacticalSummary(tb, winner) {
+    const attackerLeft = tb.attackerUnits.reduce(function (sum, unit) { return sum + Math.max(0, unit.troops); }, 0);
+    const defenderLeft = tb.defenderUnits.reduce(function (sum, unit) { return sum + Math.max(0, unit.troops); }, 0);
+    if (winner === 'attacker') return '攻方歼灭守军，战斗提前结束。残兵：攻方' + attackerLeft + '，守方' + defenderLeft + '。';
+    if (winner === 'defender') return '守军击退来敌，战斗提前结束。残兵：攻方' + attackerLeft + '，守方' + defenderLeft + '。';
+    return '鏖战未分全胜，进入综合结算。残兵：攻方' + attackerLeft + '，守方' + defenderLeft + '。';
+  }
+
+  function checkTacticalAutoEnd(tb) {
+    if (!tb || tb.autoResolving) return;
+    const aliveAttackers = livingUnits(tb.attackerUnits).length;
+    const aliveDefenders = livingUnits(tb.defenderUnits).length;
+    if (aliveAttackers > 0 && aliveDefenders > 0) return;
+    const winner = aliveDefenders === 0 ? 'attacker' : 'defender';
+    tb.forceResult = winner === 'attacker' ? 'win' : 'lose';
+    tb.autoSummary = buildTacticalSummary(tb, winner);
+    tb.logs.unshift('【战况总结】' + tb.autoSummary);
+    tb.autoResolving = true;
+    setTimeout(function () { handlers.resolveBattle(); }, 520);
   }
 
   function renderTacticalBattle() {
@@ -239,10 +265,11 @@
       for (let x = 0; x < tb.cols; x += 1) {
         const cell = tb.grid[y][x];
         const unit = getUnitAt(tb, x, y);
+        const skillFx = unit && unit.skillFxUntil && unit.skillFxUntil > Date.now();
         cells += '<button class="tb-cell terrain-' + cell.terrain + '" data-cell-x="' + x + '" data-cell-y="' + y + '">'
           + '<div class="terrain-art"><b>' + terrainIcon(cell.terrain) + '</b><span>' + terrainLabel(cell.terrain) + '</span></div>'
           + (cell.terrain === 'wall' ? '<em>墙' + cell.wallHp + '</em>' : '')
-          + (unit ? '<div class="tb-unit ' + (unit.side === 'attacker' ? 'ally' : 'enemy') + (unit.acted ? ' acted' : '') + '"><div class="tb-avatar">' + avatarGlyph(unit.name) + '</div><strong>' + unit.name + '</strong><span>' + unitTypeLabel(unit.unitType) + ' 兵力' + unit.troops + '（战意' + unit.hp + '%）</span><small>特技：' + unit.skill + (unit.buff ? '（已发动）' : '（未发动）') + '</small></div>' : '')
+          + (unit ? '<div class="tb-unit ' + (unit.side === 'attacker' ? 'ally' : 'enemy') + (unit.acted ? ' acted' : '') + (unit.buff ? ' buffed' : '') + (skillFx ? ' skill-fx' : '') + '"><div class="tb-avatar">' + avatarGlyph(unit.name) + '</div><strong>' + unit.name + '</strong><span>' + unitTypeLabel(unit.unitType) + ' 兵力' + unit.troops + '（战意' + unit.hp + '%）</span><small>特技：' + unit.skill + (unit.buff ? '（已发动）' : '（未发动）') + '</small><i class="tb-skill-aura">' + (unit.buff ? '⚡' + unit.skill : '') + '</i></div>' : '')
           + '</button>';
       }
     }
@@ -263,6 +290,7 @@
       + '<button data-view-action="tb-end-turn" ' + (tb.currentTurn !== 'attacker' ? 'disabled' : '') + '>结束玩家回合</button>'
       + '<button class="primary-endturn" data-view-action="resolve-battle">战斗结算</button>'
       + '<button data-view-action="cancel-battle">撤回部署</button></div>'
+      + (tb.autoSummary ? '<div class="tb-summary">' + tb.autoSummary + '</div>' : '')
       + '<div class="tb-log">' + tb.logs.slice(0, 6).map(function (line) { return '<div>· ' + line + '</div>'; }).join('') + '</div>'
       + '</section></div>';
 
@@ -292,6 +320,7 @@
       if (!u.skillUsed && u.hp < 70) {
         u.buff = skillBuff(u.skill);
         u.skillUsed = true;
+        u.skillFxUntil = Date.now() + 900;
         tb.logs.unshift(u.name + '发动技能【' + u.skill + '】，攻守临时提升。');
       }
       if (dist(u, target) <= u.range) {
@@ -308,6 +337,14 @@
     tb.defenderUnits.forEach(function (u) { if (u.hp > 0) u.acted = false; });
     tb.currentTurn = 'attacker';
     tb.round += 1;
+    if (tb.round > tb.maxRounds && !tb.autoResolving) {
+      tb.autoSummary = buildTacticalSummary(tb, 'draw');
+      tb.logs.unshift('【战况总结】' + tb.autoSummary);
+      tb.autoResolving = true;
+      setTimeout(function () { handlers.resolveBattle(); }, 520);
+      return;
+    }
+    checkTacticalAutoEnd(tb);
   }
 
   function render() {
@@ -425,6 +462,7 @@
       if (!tb || !unit || unit.side !== 'attacker' || unit.skillUsed || unit.acted || tb.currentTurn !== 'attacker') return;
       unit.buff = skillBuff(unit.skill);
       unit.skillUsed = true;
+      unit.skillFxUntil = Date.now() + 900;
       tb.logs.unshift(unit.name + '发动技能【' + unit.skill + '】，攻守临时提升。');
       render();
     },
@@ -446,17 +484,10 @@
       if (!appState.game || !appState.pendingBattleAction) return;
       if (appState.tacticalBattle) {
         const tb = appState.tacticalBattle;
-        const fromCity = appState.game.cities[appState.game.selectedCityId];
-        const targetCity = appState.game.cities[appState.pendingBattleAction.targetCityId];
-        if (fromCity && targetCity) {
-          fromCity.troops = Math.max(120, fromCity.troops - Math.floor(tb.attackerLoss * 0.6));
-          targetCity.troops = Math.max(90, targetCity.troops - Math.floor(tb.defenderLoss * 0.7));
-          targetCity.defense = clamp(targetCity.defense - Math.floor(tb.wallDamage / 28), 10, 100);
-        }
         const attackerLeft = tb.attackerUnits.reduce(function (sum, unit) { return sum + Math.max(0, unit.troops); }, 0);
         const defenderLeft = tb.defenderUnits.reduce(function (sum, unit) { return sum + Math.max(0, unit.troops); }, 0);
         const breachBonus = tb.wallDamage >= 110 ? 1.12 : 1;
-        appState.pendingBattleAction.tacticalResult = (attackerLeft * breachBonus > defenderLeft * 1.08) ? 'win' : 'lose';
+        appState.pendingBattleAction.tacticalResult = tb.forceResult || ((attackerLeft * breachBonus > defenderLeft * 1.08) ? 'win' : 'lose');
       }
       safeEnsureAudio();
       try {
