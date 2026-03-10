@@ -2110,8 +2110,18 @@ body {
 .tb-unit.ally { background: rgba(74,132,255,.35); }
 .tb-unit.enemy { background: rgba(235,84,84,.35); }
 .tb-unit.acted { opacity: .55; }
+.tb-unit.buffed { box-shadow: 0 0 0 1px rgba(255,214,120,.5), 0 0 12px rgba(255,214,120,.35); }
+.tb-unit.skill-fx::after { content: ''; position: absolute; inset: -4px; border-radius: 8px; border: 2px solid rgba(255,222,143,.75); animation: tbSkillPulse .45s ease-out 2; pointer-events: none; }
+.tb-skill-aura { font-style: normal; font-size: 11px; color: #ffd87a; opacity: .95; }
 .terrain-wall { background: rgba(94,72,54,.95); }
 .terrain-forest { background: rgba(44,88,57,.88); }
 .terrain-mountain { background: rgba(67,71,84,.88); }
 .tactical-actions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+.tb-summary { margin-top: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,213,121,.35); background: rgba(92,63,24,.28); color: #ffe4ad; font-size: 13px; }
 .tb-log { margin-top: 10px; max-height: 160px; overflow: auto; font-size: 13px; color: #c4d6ff; border-top: 1px solid rgba(130,165,255,.2); padding-top: 8px; }
+
+@keyframes tbSkillPulse {
+  0% { transform: scale(0.86); opacity: 0; }
+  60% { transform: scale(1.02); opacity: 1; }
+  100% { transform: scale(1.08); opacity: 0; }
+}
