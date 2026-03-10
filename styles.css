@@ -2092,9 +2092,21 @@ body {
 .tactical-shell { max-width: 1180px; margin: 0 auto; background: rgba(9,13,24,.92); border: 1px solid rgba(140,170,255,.3); border-radius: 12px; padding: 14px; }
 .tactical-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px; color: #dbe6ff; }
 .tb-board { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
-.tb-cell { min-height: 78px; border: 1px solid rgba(130,165,255,.35); background: rgba(24,35,58,.9); color: #dbe6ff; text-align: left; padding: 4px; }
-.tb-cell em { font-size: 11px; color: #ffd87a; font-style: normal; display: inline-block; margin-bottom: 2px; }
-.tb-unit { border-radius: 6px; padding: 3px; font-size: 11px; display: flex; flex-direction: column; gap: 2px; }
+.tb-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; color: #c4d6ff; font-size: 12px; }
+.tb-legend span { border: 1px solid rgba(130,165,255,.25); border-radius: 999px; padding: 2px 8px; }
+.tb-commanders { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.tb-commander { display: flex; align-items: center; gap: 8px; border: 1px solid rgba(130,165,255,.28); background: rgba(18,30,56,.8); border-radius: 10px; padding: 6px 8px; color: #dbe6ff; }
+.tb-commander.enemy { border-color: rgba(235,84,84,.35); background: rgba(68,24,24,.72); }
+.tb-portrait { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; background: rgba(74,132,255,.45); color: #fff; }
+.tb-commander.enemy .tb-portrait { background: rgba(235,84,84,.45); }
+.tb-commander span { display: block; font-size: 12px; opacity: .92; }
+.tb-cell { min-height: 78px; border: 1px solid rgba(130,165,255,.35); background: rgba(24,35,58,.9); color: #dbe6ff; text-align: left; padding: 4px; position: relative; overflow: hidden; }
+.terrain-art { position: absolute; right: 4px; top: 3px; display: flex; flex-direction: column; align-items: flex-end; pointer-events: none; opacity: .92; }
+.terrain-art b { font-size: 16px; line-height: 1; }
+.terrain-art span { font-size: 10px; color: rgba(235,240,255,.82); }
+.tb-cell em { font-size: 11px; color: #ffd87a; font-style: normal; display: inline-block; margin-bottom: 2px; position: relative; z-index: 1; }
+.tb-unit { border-radius: 6px; padding: 3px; font-size: 11px; display: flex; flex-direction: column; gap: 2px; position: relative; z-index: 1; }
+.tb-avatar { width: 18px; height: 18px; border-radius: 50%; background: rgba(255,255,255,.2); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
 .tb-unit.ally { background: rgba(74,132,255,.35); }
 .tb-unit.enemy { background: rgba(235,84,84,.35); }
 .tb-unit.acted { opacity: .55; }
