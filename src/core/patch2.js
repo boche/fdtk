@@ -1,4 +1,4 @@
-﻿(function(){
+(function(){
   const base=window.FDTK.game;
   const lore=window.FDTK.OFFICER_LORE||{};
   function clone(v){return JSON.parse(JSON.stringify(v));}
@@ -36,9 +36,23 @@
   }
   function decorateOfficer(officer,state){
     const force=officer.forceId&&state.forces[officer.forceId]?state.forces[officer.forceId]:null;
-    const history=lore[officer.id]||((officer.forceId?state.forces[officer.forceId].nameZh:'在野')+'人物，'+officer.role+'，在乱世中待主而事。');
-    officer.bio=history+' 当前职责为'+((window.FDTK.TEXT.duties&&window.FDTK.TEXT.duties[officer.duty])||'待命')+'。';
-    officer.avatar=window.FDTK.makeOfficerAvatar?window.FDTK.makeOfficerAvatar(officer,force):'';
+    const profile=window.FDTK.getOfficerProfile?window.FDTK.getOfficerProfile(officer):null;
+    const history=(profile&&profile.bio)||lore[officer.id]||((officer.forceId?state.forces[officer.forceId].nameZh:'在野')+'人物，'+officer.role+'，在乱世中待主而事。');
+    if(profile){
+      officer.civilSkill=profile.civilSkill;
+      officer.civilSkillLabel=profile.civilSkillLabel;
+      officer.civilSkillDesc=profile.civilSkillDesc;
+      officer.militarySkill=profile.militarySkill;
+      officer.militarySkillLabel=profile.militarySkillLabel;
+      officer.militarySkillDesc=profile.militarySkillDesc;
+      officer.specialSkill=profile.militarySkill;
+      officer.skillSummary=profile.skillSummary;
+    }
+    officer.portraitUrl=(profile&&profile.portraitUrl)||(window.FDTK.getOfficerPortrait?window.FDTK.getOfficerPortrait(officer):'assets/portraits/portrait-100.webp');
+    const dutyText=(window.FDTK.TEXT.duties&&window.FDTK.TEXT.duties[officer.duty])||'待命';
+    const skillText=profile?(' 内政【'+profile.civilSkillLabel+'】：'+profile.civilSkillDesc+' 军事【'+profile.militarySkillLabel+'】：'+profile.militarySkillDesc):'';
+    officer.bio=history+' 当前职责为'+dutyText+'。'+skillText;
+    officer.avatar='';
     return officer;
   }
   function createNewGame(forceId){

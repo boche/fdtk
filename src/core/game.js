@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   const scenario = window.FDTK.SCENARIO;
   const TEXT = window.FDTK.TEXT;
   const formatters = window.FDTK.formatters;
@@ -130,6 +130,122 @@
     坚守: { attack: 0, defense: 0.1 },
     统筹: { attack: 0.04, defense: 0.04 },
   };
+  const CIVIL_SKILL_EFFECTS = {
+    治水营田: { develop: 1, developOrder: 3, developLoyalty: 1, foodCut: 5, growth: 4 },
+    均输理财: { taxGold: 26, taxPopRelief: 18, taxOrderRelief: 3, taxLoyaltyRelief: 2 },
+    安民赈抚: { developOrder: 2, developLoyalty: 3, taxPopRelief: 12, taxOrderRelief: 2, taxLoyaltyRelief: 3, recruitOrderRelief: 2, recruitLoyaltyRelief: 2, hireBonus: 0.05, revoltRelief: 0.08, growth: 2 },
+    幕府筹议: { hireBonus: 0.08, developOrder: 1, tactic: 0.03 },
+    简练军籍: { recruit: 34, recruitOrderRelief: 2, recruitLoyaltyRelief: 1, training: 3 },
+    转运筹措: { foodCut: 8, recruitFoodCut: 10, taxGold: 8, marchFoodRelief: 0.08 },
+    法度整饬: { developOrder: 3, taxOrderRelief: 2, recruitOrderRelief: 2, hireBonus: 0.03, revoltRelief: 0.06 },
+  };
+
+  function getOfficerProfileData(officer) {
+    if (!officer || !window.FDTK || typeof window.FDTK.getOfficerProfile !== 'function') {
+      return null;
+    }
+    return window.FDTK.getOfficerProfile(officer);
+  }
+
+  function defaultCivilSkill(officer) {
+    if ((officer.politics || 0) >= 84) return '均输理财';
+    if ((officer.intellect || 0) >= 80) return '幕府筹议';
+    if ((officer.leadership || 0) >= 74) return '简练军籍';
+    return '安民赈抚';
+  }
+
+  function defaultMilitarySkill(officer) {
+    if ((officer.leadership || 0) >= 85) return '治军';
+    if ((officer.might || 0) >= 80) return '突击';
+    if ((officer.intellect || 0) >= 82) return '火计';
+    if ((officer.politics || 0) >= 84) return '统筹';
+    return '坚守';
+  }
+
+  function hydrateOfficerSkills(officer) {
+    if (!officer) return officer;
+    const profile = getOfficerProfileData(officer);
+    if (profile) {
+      officer.bio = profile.bio || officer.bio;
+      officer.civilSkill = profile.civilSkill || officer.civilSkill;
+      officer.civilSkillLabel = profile.civilSkillLabel || officer.civilSkill;
+      officer.civilSkillDesc = profile.civilSkillDesc || officer.civilSkillDesc;
+      officer.militarySkill = profile.militarySkill || officer.militarySkill || officer.specialSkill;
+      officer.militarySkillLabel = profile.militarySkillLabel || officer.militarySkill;
+      officer.militarySkillDesc = profile.militarySkillDesc || officer.militarySkillDesc;
+      officer.skillSummary = profile.skillSummary || officer.skillSummary;
+      officer.portraitUrl = profile.portraitUrl || officer.portraitUrl;
+      if (profile.militarySkill) {
+        officer.specialSkill = profile.militarySkill;
+      }
+    }
+    if (window.FDTK && typeof window.FDTK.getOfficerPortrait === 'function') {
+      officer.portraitUrl = window.FDTK.getOfficerPortrait(officer);
+    }
+    if (!officer.civilSkill) officer.civilSkill = defaultCivilSkill(officer);
+    if (!officer.civilSkillLabel) officer.civilSkillLabel = officer.civilSkill;
+    if (!officer.militarySkill) officer.militarySkill = officer.specialSkill || defaultMilitarySkill(officer);
+    if (!officer.militarySkillLabel) officer.militarySkillLabel = officer.militarySkill;
+    officer.specialSkill = officer.militarySkill;
+    if (!officer.skillSummary) {
+      officer.skillSummary = '内政：' + officer.civilSkillLabel + '，军事：' + officer.militarySkillLabel + '。';
+    }
+    return officer;
+  }
+
+  function getCivilEffect(officer) {
+    hydrateOfficerSkills(officer);
+    return officer && CIVIL_SKILL_EFFECTS[officer.civilSkill] ? CIVIL_SKILL_EFFECTS[officer.civilSkill] : {};
+  }
+
+  function getBestCivilOfficer(state, cityId, forceId, actionKey) {
+    const officers = getCityOfficers(state, cityId, forceId);
+    if (!officers.length) return null;
+    return officers.slice().sort(function (left, right) {
+      hydrateOfficerSkills(left);
+      hydrateOfficerSkills(right);
+      const leftEffect = getCivilEffect(left);
+      const rightEffect = getCivilEffect(right);
+      const leftDuty = ((actionKey === 'hire' && left.duty === 'hire') || ((actionKey === 'develop' || actionKey === 'tax') && left.duty === 'govern')) ? 10 : 0;
+      const rightDuty = ((actionKey === 'hire' && right.duty === 'hire') || ((actionKey === 'develop' || actionKey === 'tax') && right.duty === 'govern')) ? 10 : 0;
+      const leftBonus = leftDuty + (leftEffect[actionKey] || 0) * 8 + (leftEffect[actionKey + 'Bonus'] || 0) * 100;
+      const rightBonus = rightDuty + (rightEffect[actionKey] || 0) * 8 + (rightEffect[actionKey + 'Bonus'] || 0) * 100;
+      return (right.politics || 0) + rightBonus - ((left.politics || 0) + leftBonus);
+    })[0];
+  }
+
+  function getBestRecruitOfficer(state, cityId, forceId) {
+    const officers = getCityOfficers(state, cityId, forceId);
+    if (!officers.length) return null;
+    return officers.slice().sort(function (left, right) {
+      hydrateOfficerSkills(left);
+      hydrateOfficerSkills(right);
+      const leftEffect = getCivilEffect(left);
+      const rightEffect = getCivilEffect(right);
+      const leftBonus = (left.duty === 'recruit' ? 12 : 0) + (left.civilSkill === '简练军籍' ? 8 : 0) + (left.specialSkill === '治军' ? 6 : 0) + (leftEffect.training || 0);
+      const rightBonus = (right.duty === 'recruit' ? 12 : 0) + (right.civilSkill === '简练军籍' ? 8 : 0) + (right.specialSkill === '治军' ? 6 : 0) + (rightEffect.training || 0);
+      return (right.leadership || 0) + rightBonus - ((left.leadership || 0) + leftBonus);
+    })[0];
+  }
+
+  function getBestBattleOfficer(list, mode) {
+    if (!list.length) return null;
+    return list.slice().sort(function (left, right) {
+      hydrateOfficerSkills(left);
+      hydrateOfficerSkills(right);
+      const leftBonus = (mode === 'defense' && left.duty === 'defend' ? 14 : 0) + (mode === 'attack' && left.duty === 'recruit' ? 8 : 0) + (mode === 'defense' && left.specialSkill === '坚守' ? 8 : 0) + (left.specialSkill === '治军' ? 5 : 0) + (left.specialSkill === '突击' && mode === 'attack' ? 6 : 0);
+      const rightBonus = (mode === 'defense' && right.duty === 'defend' ? 14 : 0) + (mode === 'attack' && right.duty === 'recruit' ? 8 : 0) + (mode === 'defense' && right.specialSkill === '坚守' ? 8 : 0) + (right.specialSkill === '治军' ? 5 : 0) + (right.specialSkill === '突击' && mode === 'attack' ? 6 : 0);
+      return (right.leadership || 0) + rightBonus - ((left.leadership || 0) + leftBonus);
+    })[0];
+  }  function civilSkillPhrase(officer) {
+    hydrateOfficerSkills(officer);
+    return officer ? '，由' + officer.nameZh + '以【' + (officer.civilSkillLabel || officer.civilSkill) + '】辅政' : '';
+  }
+
+  function militarySkillPhrase(officer) {
+    hydrateOfficerSkills(officer);
+    return officer ? '，' + officer.nameZh + '领【' + (officer.militarySkillLabel || officer.specialSkill || '坚守') + '】军' : '';
+  }
 
   function consumeTruces(state) {
     Object.values(state.forces).forEach(function (force) {
@@ -403,48 +519,61 @@
   function performDevelop(state, forceId, cityId, isAi) {
     const city = state.cities[cityId];
     const force = state.forces[forceId];
-    if (!city || !force || city.ownerForceId !== forceId || force.gold < 28 || force.food < 18) {
+    const adviser = getBestCivilOfficer(state, cityId, forceId, 'develop');
+    const effect = getCivilEffect(adviser);
+    const goldCost = Math.max(20, 28 - (effect.costCut || 0));
+    const foodCost = Math.max(10, 18 - (effect.foodCut || 0));
+    if (!city || !force || city.ownerForceId !== forceId || force.gold < goldCost || force.food < foodCost) {
       return false;
     }
-    force.gold -= 28;
-    force.food -= 18;
-    city.development = clamp(city.development + 1, 1, 6);
-    changeCitySpirit(city, 6, 4);
-    createLog(state, getForceName(state, forceId) + '在' + city.nameZh + '整修官仓与街市，开发略有进展。', isAi ? 'ai' : 'normal');
+    force.gold -= goldCost;
+    force.food -= foodCost;
+    city.development = clamp(city.development + 1 + (effect.develop || 0), 1, 6);
+    changeCitySpirit(city, 6 + (effect.developOrder || 0), 4 + (effect.developLoyalty || 0));
+    if (typeof city.population === 'number') {
+      city.population = clamp(city.population + 6 + (effect.growth || 0) + Math.floor((adviser ? adviser.politics : 50) / 25), 120, 9999);
+    }
+    createLog(state, getForceName(state, forceId) + '在' + city.nameZh + '整修官仓与街市，开发略有进展' + civilSkillPhrase(adviser) + '。', isAi ? 'ai' : 'normal');
     return true;
   }
-
   function performTax(state, forceId, cityId, isAi) {
     const city = state.cities[cityId];
     const force = state.forces[forceId];
+    const adviser = getBestCivilOfficer(state, cityId, forceId, 'tax');
+    const effect = getCivilEffect(adviser);
     if (!city || !force || city.ownerForceId !== forceId) {
       return false;
     }
-    const gain = 52 + city.development * 8;
+    const gain = 52 + city.development * 8 + (effect.taxGold || 0) + Math.floor((adviser ? adviser.politics : 50) / 10);
     force.gold += gain;
-    changeCitySpirit(city, -8, -5);
-    createLog(state, getForceName(state, forceId) + '在' + city.nameZh + '加征钱粮，府库得金' + gain + '。', isAi ? 'ai' : 'normal');
+    const orderLoss = Math.max(3, 8 - (effect.taxOrderRelief || 0));
+    const loyaltyLoss = Math.max(2, 5 - (effect.taxLoyaltyRelief || 0));
+    changeCitySpirit(city, -orderLoss, -loyaltyLoss);
+    createLog(state, getForceName(state, forceId) + '在' + city.nameZh + '加征钱粮，府库得金' + gain + civilSkillPhrase(adviser) + '。', isAi ? 'ai' : 'normal');
     return true;
   }
-
   function performRecruit(state, forceId, cityId, isAi) {
     const city = state.cities[cityId];
     const force = state.forces[forceId];
-    const leadOfficer = getBestOfficer(getCityOfficers(state, cityId, forceId), 'leadership');
-    if (!city || !force || city.ownerForceId !== forceId || force.gold < 36 || force.food < 42) {
+    const leadOfficer = getBestRecruitOfficer(state, cityId, forceId);
+    const effect = getCivilEffect(leadOfficer);
+    const goldCost = 36;
+    const foodCost = Math.max(30, 42 - (effect.recruitFoodCut || 0));
+    if (!city || !force || city.ownerForceId !== forceId || force.gold < goldCost || force.food < foodCost) {
       return false;
     }
-    const gain = 70 + city.development * 12 + Math.floor((leadOfficer ? leadOfficer.leadership : 50) / 4);
-    force.gold -= 36;
-    force.food -= 42;
+    const skillRecruit = leadOfficer && leadOfficer.civilSkill === '简练军籍' ? (effect.recruit || 0) : 0;
+    const militaryRecruit = leadOfficer && leadOfficer.specialSkill === '治军' ? 18 : 0;
+    const gain = 70 + city.development * 12 + Math.floor((leadOfficer ? leadOfficer.leadership : 50) / 4) + skillRecruit + militaryRecruit;
+    force.gold -= goldCost;
+    force.food -= foodCost;
     city.troops += gain;
-    city.training = clamp(city.training + 4 + Math.floor((leadOfficer ? leadOfficer.leadership : 55) / 18), 40, 100);
-    city.morale = clamp(city.morale + 3, 35, 100);
-    changeCitySpirit(city, -4, -2);
-    createLog(state, getForceName(state, forceId) + '在' + city.nameZh + '整伍征兵，新增兵力' + gain + '，训练度与士气同步提升。', isAi ? 'ai' : 'normal');
+    city.training = clamp(city.training + 4 + (effect.training || 0) + Math.floor((leadOfficer ? leadOfficer.leadership : 55) / 18), 40, 100);
+    city.morale = clamp(city.morale + 3 + (leadOfficer && leadOfficer.specialSkill === '治军' ? 2 : 0), 35, 100);
+    changeCitySpirit(city, -Math.max(2, 4 - (effect.recruitOrderRelief || 0)), -Math.max(1, 2 - (effect.recruitLoyaltyRelief || 0)));
+    createLog(state, getForceName(state, forceId) + '在' + city.nameZh + '整伍征兵，新增兵力' + gain + militarySkillPhrase(leadOfficer) + '，训练度与士气同步提升。', isAi ? 'ai' : 'normal');
     return true;
   }
-
   function performAppoint(state, forceId, cityId, isAi) {
     const city = state.cities[cityId];
     const reserve = getBestOfficer(getReserveOfficers(state, forceId), 'politics');
@@ -462,25 +591,26 @@
   function performHire(state, forceId, cityId, isAi) {
     const city = state.cities[cityId];
     const candidates = getFreeOfficersInCity(state, cityId);
-    const adviser = getBestOfficer(getCityOfficers(state, cityId, forceId), 'politics');
+    const adviser = getBestCivilOfficer(state, cityId, forceId, 'hire');
+    const effect = getCivilEffect(adviser);
     if (!city || city.ownerForceId !== forceId || !candidates.length) {
       return false;
     }
     const target = candidates.sort(function (left, right) {
       return right.politics - left.politics;
     })[0];
-    const chance = 0.35 + city.loyalty / 250 + (adviser ? adviser.politics : 55) / 220;
-    if (nextRandom(state) <= Math.min(chance, 0.92)) {
+    hydrateOfficerSkills(target);
+    const chance = 0.35 + city.loyalty / 250 + (adviser ? adviser.politics : 55) / 220 + (effect.hireBonus || 0);
+    if (nextRandom(state) <= Math.min(chance, 0.95)) {
       target.forceId = forceId;
       target.assigned = false;
       target.loyalty = 62;
-      createLog(state, target.nameZh + '愿归于' + getForceName(state, forceId) + '帐下，暂驻' + city.nameZh + '候命。', isAi ? 'ai' : 'normal');
+      createLog(state, target.nameZh + '愿归于' + getForceName(state, forceId) + '帐下，暂驻' + city.nameZh + '候命' + civilSkillPhrase(adviser) + '。', isAi ? 'ai' : 'normal');
       return true;
     }
-    createLog(state, target.nameZh + '暂未决意，' + getForceName(state, forceId) + '此次招揽未果。', isAi ? 'ai' : 'normal');
+    createLog(state, target.nameZh + '暂未决意，' + getForceName(state, forceId) + '此次招揽未果' + civilSkillPhrase(adviser) + '。', isAi ? 'ai' : 'normal');
     return true;
   }
-
   function scheduleAttack(state, forceId, fromCityId, targetCityId, isAi) {
     const fromCity = state.cities[fromCityId];
     const targetCity = state.cities[targetCityId];
@@ -492,7 +622,7 @@
       return false;
     }
 
-    const commander = getBestOfficer(getCityOfficers(state, fromCityId, forceId), 'leadership') || getBestOfficer(getForceOfficers(state, forceId), 'leadership');
+    const commander = hydrateOfficerSkills(getBestBattleOfficer(getCityOfficers(state, fromCityId, forceId), 'attack') || getBestBattleOfficer(getForceOfficers(state, forceId), 'attack'));
     const committed = Math.max(80, Math.floor(fromCity.troops * 0.6));
     fromCity.troops -= committed;
     state.pendingAttacks.push({
@@ -506,10 +636,9 @@
       originMorale: fromCity.morale || 65,
       originTraining: fromCity.training || 65,
     });
-    createLog(state, getForceName(state, forceId) + '自' + fromCity.nameZh + '发兵攻向' + targetCity.nameZh + '。', isAi ? 'ai' : 'normal');
+    createLog(state, getForceName(state, forceId) + '自' + fromCity.nameZh + '发兵攻向' + targetCity.nameZh + militarySkillPhrase(commander) + '。', isAi ? 'ai' : 'normal');
     return true;
   }
-
   function performTruce(state, forceId, targetForceId, isAi) {
     const force = state.forces[forceId];
     const targetForce = state.forces[targetForceId];
@@ -528,6 +657,7 @@
   }
 
   function getSkillEffect(officer, mode) {
+    hydrateOfficerSkills(officer);
     if (!officer || !officer.specialSkill || !SKILL_EFFECTS[officer.specialSkill]) {
       return 1;
     }
@@ -592,8 +722,8 @@
         return;
       }
 
-      const commander = battle.commanderId ? state.officers[battle.commanderId] : null;
-      const defenderOfficer = getBestOfficer(getCityOfficers(state, targetCity.id, targetCity.ownerForceId), 'leadership');
+      const commander = battle.commanderId ? hydrateOfficerSkills(state.officers[battle.commanderId]) : null;
+      const defenderOfficer = getBestBattleOfficer(getCityOfficers(state, targetCity.id, targetCity.ownerForceId), 'defense');
       const attackerType = battle.unitType || getUnitType(commander);
       const defenderType = getUnitType(defenderOfficer);
       const foodEnough = state.forces[battle.attackerForceId].food >= Math.floor(battle.troops / 3);
@@ -764,12 +894,9 @@
       if (!officer.unitType) {
         officer.unitType = officer.might >= 75 ? 'cavalry' : officer.intellect >= 78 ? 'archer' : 'infantry';
       }
-      if (!officer.specialSkill) {
-        officer.specialSkill = officer.leadership >= 85 ? '治军' : officer.might >= 80 ? '突击' : officer.intellect >= 82 ? '火计' : officer.politics >= 84 ? '统筹' : '坚守';
-      }
+      hydrateOfficerSkills(officer);
     });
   }
-
   function applyAction(state, action) {
     const nextState = clone(state);
     ensureBattleFields(nextState);
@@ -871,9 +998,11 @@
   function getCityView(state, cityId) {
     const city = state.cities[cityId];
     const officers = getCityOfficers(state, cityId).map(function (officer) {
+      hydrateOfficerSkills(officer);
       return Object.assign({}, officer, { unitTypeLabel: unitTypeLabel(officer.unitType) });
     });
     const wanderers = getFreeOfficersInCity(state, cityId).map(function (officer) {
+      hydrateOfficerSkills(officer);
       return Object.assign({}, officer, { unitTypeLabel: unitTypeLabel(officer.unitType) });
     });
     const cityWithLabel = Object.assign({}, city, {

@@ -1,97 +1,39 @@
-﻿(function(){
+(function(){
   const prev=window.FDTK.game;
-  function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
-  function ensureCityMeta(state){
-    Object.values(state.cities).forEach(function(city){
-      if(typeof city.population!=='number'){city.population=900+city.development*140+city.order*3;}
-      if(typeof city.taxBurden!=='number'){city.taxBurden=0;}
-      if(typeof city.conscription!=='number'){city.conscription=0;}
-    });
-  }
-  function applyMonthlyRecovery(state){
-    Object.values(state.cities).forEach(function(city){
-      city.taxBurden=clamp(city.taxBurden-1,0,4);
-      city.conscription=clamp(city.conscription-1,0,4);
-      const growth=Math.max(8, Math.floor(city.development*9 + city.loyalty/8 - city.taxBurden*10 - city.conscription*14));
-      city.population=clamp(city.population+growth,120,9999);
-    });
-  }
-  function describePenalty(city){
-    return '人口 '+city.population+'，税负 '+city.taxBurden+'，兵役 '+city.conscription;
-  }
-  function createNewGame(forceId){
-    const state=prev.createNewGame(forceId);
-    ensureCityMeta(state);
-    return state;
-  }
-  function getAvailableActions(state){
-    ensureCityMeta(state);
-    const actions=prev.getAvailableActions(state);
-    const city=state.cities[state.selectedCityId];
-    actions.forEach(function(action){
-      if(action.id==='tax'){
-        if(city.taxBurden>=3 || city.loyalty<=45 || city.population<=420){action.enabled=false;}
-      }
-      if(action.id==='recruit'){
-        if(city.conscription>=3 || city.loyalty<=42 || city.population<=320){action.enabled=false;}
-      }
-    });
-    return actions;
-  }
-  function getForceOverview(state,forceId){
-    ensureCityMeta(state);
-    return prev.getForceOverview(state,forceId);
-  }
-  function getCityView(state,cityId){
-    ensureCityMeta(state);
-    return prev.getCityView(state,cityId);
-  }
-  function applyAction(inputState,action){
-    ensureCityMeta(inputState);
-    const before=inputState.cities[inputState.selectedCityId]?JSON.parse(JSON.stringify(inputState.cities[inputState.selectedCityId])):null;
-    const result=prev.applyAction(inputState,action);
-    ensureCityMeta(result);
-    const city=result.cities[result.selectedCityId];
-    if(action.type==='tax' && city && before){
-      const popLoss=40 + before.taxBurden*22;
-      city.population=clamp(city.population-popLoss,120,9999);
-      city.taxBurden=clamp(city.taxBurden+1,0,4);
-      city.loyalty=clamp(city.loyalty-4-before.taxBurden,30,100);
-      city.order=clamp(city.order-3,35,100);
-      result.lastFeedback={title:'征税完成',body:city.nameZh+'得金，但民心受损，流民增加。'+describePenalty(city),tone:'bad',cityId:city.id,tick:(result.lastFeedback&&result.lastFeedback.tick?result.lastFeedback.tick:0)+1};
-      result.logs.unshift({id:'tax-cost-'+Date.now(),time:result.year+'年'+result.month+'月',text:city.nameZh+'因加征而民力受损，人口下降 '+popLoss+'。',tone:'bad'});
-    }
-    if(action.type==='recruit' && city && before){
-      const popLoss=72 + before.conscription*30;
-      city.population=clamp(city.population-popLoss,120,9999);
-      city.conscription=clamp(city.conscription+1,0,4);
-      city.loyalty=clamp(city.loyalty-3-before.conscription,30,100);
-      city.order=clamp(city.order-2,35,100);
-      result.lastFeedback={title:'征兵完成',body:city.nameZh+'兵力上升，但壮丁被抽调，人口下降。'+describePenalty(city),tone:'bad',cityId:city.id,tick:(result.lastFeedback&&result.lastFeedback.tick?result.lastFeedback.tick:0)+1};
-      result.logs.unshift({id:'recruit-cost-'+Date.now(),time:result.year+'年'+result.month+'月',text:city.nameZh+'征发壮丁，人口下降 '+popLoss+'，地方稍生怨气。',tone:'bad'});
-    }
-    if(action.type==='endTurn'){
-      applyMonthlyRecovery(result);
-      if(result.advisorReport){
-        const weak=Object.values(result.cities).filter(function(c){return c.ownerForceId===result.playerForceId && (c.taxBurden>=2 || c.conscription>=2 || c.population<450);});
-        if(weak.length){
-          const names=weak.slice(0,3).map(function(c){return c.nameZh;}).join('、');
-          result.advisorReport.lines.unshift('另有 '+names+' 民力偏弱，短期内不宜再重税或强征。');
-        }
-      }
-    }
-    return result;
-  }
-  window.FDTK.game={
-    createNewGame:createNewGame,
-    getAvailableActions:getAvailableActions,
-    applyAction:applyAction,
-    runAiPhase:prev.runAiPhase,
-    resolveBattles:prev.resolveBattles,
-    advanceMonth:prev.advanceMonth,
-    getForceOverview:getForceOverview,
-    getCityView:getCityView,
-    getForceCities:prev.getForceCities,
-    getForceOfficers:prev.getForceOfficers,
+  const TEXT=window.FDTK.TEXT;
+  const fmt=window.FDTK.formatters;
+  const CIVIL_EFFECTS={
+    治水营田:{growth:4,developOrder:3},
+    均输理财:{taxGold:26,taxPopRelief:18,taxOrderRelief:3,taxLoyaltyRelief:2},
+    安民赈抚:{taxPopRelief:12,taxOrderRelief:2,taxLoyaltyRelief:3,recruitOrderRelief:2,recruitLoyaltyRelief:2,growth:2},
+    幕府筹议:{hireBonus:.08},
+    简练军籍:{recruit:34,recruitOrderRelief:2,recruitLoyaltyRelief:1,training:3},
+    转运筹措:{taxGold:8,recruitFoodCut:10},
+    法度整饬:{taxOrderRelief:2,recruitOrderRelief:2}
   };
+  function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+  function clone(v){return JSON.parse(JSON.stringify(v));}
+  function flagsForCities(cities){const out={};Object.keys(cities||{}).forEach(function(id){out[id]={civilUsed:false,strategicUsed:false};});return out;}
+  function ensureCityMeta(state){Object.values(state.cities).forEach(function(city){if(typeof city.population!=='number'){city.population=900+city.development*140+city.order*3;}if(typeof city.taxBurden!=='number'){city.taxBurden=0;}if(typeof city.conscription!=='number'){city.conscription=0;}});}
+  function profile(o){return o&&window.FDTK&&window.FDTK.getOfficerProfile?window.FDTK.getOfficerProfile(o):null;}
+  function hydrate(o){if(!o){return o;}const p=profile(o);if(p){o.bio=p.bio||o.bio;o.civilSkill=p.civilSkill;o.civilSkillLabel=p.civilSkillLabel;o.civilSkillDesc=p.civilSkillDesc;o.militarySkill=p.militarySkill;o.militarySkillLabel=p.militarySkillLabel;o.militarySkillDesc=p.militarySkillDesc;o.specialSkill=p.militarySkill;o.skillSummary=p.skillSummary;}if(!o.civilSkill){o.civilSkill=o.politics>=82?'均输理财':o.intellect>=78?'幕府筹议':o.leadership>=72?'简练军籍':'安民赈抚';}if(!o.civilSkillLabel){o.civilSkillLabel=o.civilSkill;}return o;}
+  function effect(o){hydrate(o);return o&&CIVIL_EFFECTS[o.civilSkill]?CIVIL_EFFECTS[o.civilSkill]:{};}
+  function getForceOfficers(state,forceId){return Object.values(state.officers).filter(function(o){return o.forceId===forceId;});}
+  function getCityOfficers(state,cityId,forceId){return Object.values(state.officers).filter(function(o){return o.cityId===cityId&&(!forceId||o.forceId===forceId);});}
+  function getReserveOfficers(state,forceId){return getForceOfficers(state,forceId).filter(function(o){return !o.assigned;});}
+  function getFreeOfficersInCity(state,cityId){return Object.values(state.officers).filter(function(o){return !o.forceId&&o.cityId===cityId;});}
+  function bestCivil(state,cityId,forceId,mode){const list=getCityOfficers(state,cityId,forceId);if(!list.length){return null;}return list.slice().sort(function(a,b){hydrate(a);hydrate(b);const ea=effect(a),eb=effect(b);const da=((mode==='tax'||mode==='develop')&&a.duty==='govern')||(mode==='hire'&&a.duty==='hire')?10:0;const db=((mode==='tax'||mode==='develop')&&b.duty==='govern')||(mode==='hire'&&b.duty==='hire')?10:0;return (b.politics||0)+db+(eb[mode]||0)*8-((a.politics||0)+da+(ea[mode]||0)*8);})[0];}
+  function skillText(o){hydrate(o);return o?'，'+o.nameZh+'以【'+(o.civilSkillLabel||o.civilSkill)+'】主事':'';}
+  function describePenalty(city){return '人口 '+city.population+'，税负 '+city.taxBurden+'，兵役 '+city.conscription;}
+  function applyMonthlyRecovery(state){Object.values(state.cities).forEach(function(city){city.taxBurden=clamp(city.taxBurden-1,0,4);city.conscription=clamp(city.conscription-1,0,4);const adviser=city.ownerForceId?bestCivil(state,city.id,city.ownerForceId,'develop'):null;const e=effect(adviser);const growth=Math.max(1,Math.floor(city.development*3+city.loyalty/22+city.order/35-city.taxBurden*7-city.conscription*9+(e.growth||0)));city.population=clamp(city.population+growth,120,9999);});}
+  function createNewGame(forceId){const state=prev.createNewGame(forceId);ensureCityMeta(state);Object.values(state.officers).forEach(hydrate);return state;}
+  function getAvailableActions(state){ensureCityMeta(state);const actions=prev.getAvailableActions(state);const city=state.cities[state.selectedCityId];actions.forEach(function(action){if(action.id==='tax'){if(city.taxBurden>=2||city.loyalty<=52||city.order<=50||city.population<=550){action.enabled=false;action.reason='税负、民心、治安或人口不足，不能继续征税。';}}if(action.id==='recruit'){if(city.conscription>=2||city.loyalty<=48||city.order<=48||city.population<=430){action.enabled=false;action.reason='兵役、民心、治安或人口不足，不能继续征兵。';}}});return actions;}
+  function getForceOverview(state,forceId){ensureCityMeta(state);return prev.getForceOverview(state,forceId);}
+  function getCityView(state,cityId){ensureCityMeta(state);return prev.getCityView(state,cityId);}
+  function applyAction(inputState,action){ensureCityMeta(inputState);Object.values(inputState.officers||{}).forEach(hydrate);const before=inputState.cities[inputState.selectedCityId]?clone(inputState.cities[inputState.selectedCityId]):null;const result=prev.applyAction(inputState,action);ensureCityMeta(result);Object.values(result.officers||{}).forEach(hydrate);const city=result.cities[result.selectedCityId];const forceId=result.playerForceId;
+    if(action.type==='tax'&&city&&before&&city.ownerForceId===forceId){const adviser=bestCivil(result,city.id,forceId,'tax');const e=effect(adviser);const popLoss=Math.max(8,30+before.taxBurden*18-Math.floor((adviser?adviser.politics:50)/14)-(e.taxPopRelief||0));city.population=clamp(city.population-popLoss,120,9999);city.taxBurden=clamp(city.taxBurden+1,0,4);city.loyalty=clamp(city.loyalty-Math.max(1,3+before.taxBurden-(e.taxLoyaltyRelief||0)),22,100);city.order=clamp(city.order-Math.max(1,3-(e.taxOrderRelief||0)),25,100);result.lastFeedback={title:'征税完成',body:city.nameZh+'得金，但税负上升、流民增加'+skillText(adviser)+'。'+describePenalty(city),tone:'bad',cityId:city.id,tick:(result.lastFeedback&&result.lastFeedback.tick?result.lastFeedback.tick:0)+1};result.logs.unshift({id:'tax-cost-'+Date.now(),time:fmt.monthLabel(result.year,result.month),text:city.nameZh+'加征后人口下降 '+popLoss+skillText(adviser)+'，税负升至 '+city.taxBurden+'。',tone:'bad'});}
+    if(action.type==='recruit'&&city&&before&&city.ownerForceId===forceId){const officer=bestCivil(result,city.id,forceId,'recruit');const e=effect(officer);const troopGain=Math.max(0,city.troops-before.troops);if(troopGain>0){const popLoss=Math.min(Math.max(0,city.population-120),troopGain);city.population=clamp(city.population-popLoss,120,9999);city.conscription=clamp(city.conscription+1,0,4);city.loyalty=clamp(city.loyalty-Math.max(1,3+before.conscription-(e.recruitLoyaltyRelief||0)),22,100);city.order=clamp(city.order-Math.max(1,2+before.conscription-(e.recruitOrderRelief||0)),25,100);result.lastFeedback={title:'征兵完成',body:city.nameZh+'新增兵力 '+troopGain+'，对应人口转为兵籍 '+popLoss+skillText(officer)+'。'+describePenalty(city),tone:'bad',cityId:city.id,tick:(result.lastFeedback&&result.lastFeedback.tick?result.lastFeedback.tick:0)+1};result.logs.unshift({id:'recruit-cost-'+Date.now(),time:fmt.monthLabel(result.year,result.month),text:city.nameZh+'征发壮丁 '+popLoss+' 入伍，兵力与人口完成转换'+skillText(officer)+'。',tone:'bad'});}}
+    if(action.type==='endTurn'){applyMonthlyRecovery(result);if(result.advisorReport){const weak=Object.values(result.cities).filter(function(c){return c.ownerForceId===result.playerForceId&&(c.taxBurden>=2||c.conscription>=2||c.population<520);});if(weak.length){const names=weak.slice(0,3).map(function(c){return c.nameZh;}).join('、');result.advisorReport.lines.unshift('另有 '+names+' 民力偏弱，短期内不宜再重税或强征。');}}}
+    return result;}
+  window.FDTK.game={createNewGame:createNewGame,getAvailableActions:getAvailableActions,applyAction:applyAction,runAiPhase:prev.runAiPhase,resolveBattles:prev.resolveBattles,advanceMonth:prev.advanceMonth,getForceOverview:getForceOverview,getCityView:getCityView,getForceCities:prev.getForceCities,getForceOfficers:prev.getForceOfficers};
 })();

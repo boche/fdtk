@@ -1,4 +1,4 @@
-﻿(function(){
+(function(){
   const prev = window.FDTK.game;
   const TEXT = window.FDTK.TEXT;
   const fmt = window.FDTK.formatters;
@@ -18,6 +18,23 @@
   function getCityOfficers(state, cityId, forceId){ return Object.values(state.officers).filter(function(officer){ return officer.cityId === cityId && (!forceId || officer.forceId === forceId); }); }
   function getReserveOfficers(state, forceId){ return getForceOfficers(state, forceId).filter(function(officer){ return !officer.assigned; }); }
   function best(list, key){ return list.length ? list.slice().sort(function(a,b){ return (b[key]||0) - (a[key]||0); })[0] : null; }
+  const CIVIL_EFFECTS={
+    治水营田:{develop:1,developOrder:3,developLoyalty:1,foodCut:5,growth:4},
+    均输理财:{taxGold:26,taxPopRelief:18,taxOrderRelief:3,taxLoyaltyRelief:2},
+    安民赈抚:{developOrder:2,developLoyalty:3,taxPopRelief:12,taxOrderRelief:2,taxLoyaltyRelief:3,recruitOrderRelief:2,recruitLoyaltyRelief:2,revoltRelief:.08,growth:2},
+    幕府筹议:{hireBonus:.08,tactic:.03},
+    简练军籍:{recruit:34,recruitOrderRelief:2,recruitLoyaltyRelief:1,training:3},
+    转运筹措:{foodCut:8,recruitFoodCut:10,taxGold:8,marchFoodRelief:.08},
+    法度整饬:{developOrder:3,taxOrderRelief:2,recruitOrderRelief:2,revoltRelief:.06}
+  };
+  function profile(o){ return o&&window.FDTK&&window.FDTK.getOfficerProfile ? window.FDTK.getOfficerProfile(o) : null; }
+  function hydrate(o){ if(!o){return o;} const p=profile(o); if(p){ o.bio=p.bio||o.bio; o.civilSkill=p.civilSkill; o.civilSkillLabel=p.civilSkillLabel; o.civilSkillDesc=p.civilSkillDesc; o.militarySkill=p.militarySkill; o.militarySkillLabel=p.militarySkillLabel; o.militarySkillDesc=p.militarySkillDesc; o.specialSkill=p.militarySkill; o.skillSummary=p.skillSummary; } if(!o.civilSkill){ o.civilSkill=o.politics>=82?'均输理财':o.intellect>=78?'幕府筹议':o.leadership>=72?'简练军籍':'安民赈抚'; } if(!o.civilSkillLabel){o.civilSkillLabel=o.civilSkill;} if(!o.specialSkill){ o.specialSkill=o.leadership>=85?'治军':o.might>=80?'突击':o.intellect>=82?'火计':o.politics>=84?'统筹':'坚守'; } return o; }
+  function effect(o){ hydrate(o); return o&&CIVIL_EFFECTS[o.civilSkill] ? CIVIL_EFFECTS[o.civilSkill] : {}; }
+  function bestCivil(state, cityId, forceId, mode){ const list=getCityOfficers(state, cityId, forceId); if(!list.length){return null;} return list.slice().sort(function(a,b){ hydrate(a); hydrate(b); const ea=effect(a), eb=effect(b); const da=((mode==='develop'||mode==='tax'||mode==='recover')&&a.duty==='govern')||(mode==='hire'&&a.duty==='hire')?10:0; const db=((mode==='develop'||mode==='tax'||mode==='recover')&&b.duty==='govern')||(mode==='hire'&&b.duty==='hire')?10:0; return (b.politics||0)+db+(eb[mode]||0)*8-((a.politics||0)+da+(ea[mode]||0)*8); })[0]; }
+  function bestRecruit(state, cityId, forceId){ const list=getCityOfficers(state, cityId, forceId); if(!list.length){return null;} return list.slice().sort(function(a,b){ hydrate(a); hydrate(b); const ea=effect(a), eb=effect(b); const ba=(a.duty==='recruit'?12:0)+(a.civilSkill==='简练军籍'?8:0)+(a.specialSkill==='治军'?6:0)+(ea.training||0); const bb=(b.duty==='recruit'?12:0)+(b.civilSkill==='简练军籍'?8:0)+(b.specialSkill==='治军'?6:0)+(eb.training||0); return (b.leadership||0)+bb-((a.leadership||0)+ba); })[0]; }
+  function bestBattle(list, mode){ if(!list.length){return null;} return list.slice().sort(function(a,b){ hydrate(a); hydrate(b); const ba=(mode==='defense'&&a.duty==='defend'?14:0)+(mode==='attack'&&a.duty==='recruit'?8:0)+(mode==='defense'&&a.specialSkill==='坚守'?8:0)+(a.specialSkill==='治军'?5:0)+(a.specialSkill==='突击'&&mode==='attack'?6:0); const bb=(mode==='defense'&&b.duty==='defend'?14:0)+(mode==='attack'&&b.duty==='recruit'?8:0)+(mode==='defense'&&b.specialSkill==='坚守'?8:0)+(b.specialSkill==='治军'?5:0)+(b.specialSkill==='突击'&&mode==='attack'?6:0); return (b.leadership||0)+bb-((a.leadership||0)+ba); })[0]; }
+  function civilPhrase(o){ hydrate(o); return o ? '，'+o.nameZh+'以【'+(o.civilSkillLabel||o.civilSkill)+'】主事' : ''; }
+  function militaryPhrase(o){ hydrate(o); return o ? '，'+o.nameZh+'领【'+(o.militarySkillLabel||o.specialSkill||'坚守')+'】军' : ''; }
   function getForceName(state, forceId){ return state.forces[forceId] ? state.forces[forceId].nameZh : '无主'; }
   function isNeighbor(state, fromCityId, targetCityId){ const from = state.cities[fromCityId]; return !!(from && from.neighbors.indexOf(targetCityId) >= 0); }
   function setFeedback(state, title, body, tone, cityId){ state.lastFeedback = { title:title, body:body, tone:tone||'normal', cityId:cityId||null, tick:((state.lastFeedback&&state.lastFeedback.tick)||0)+1 }; }
@@ -37,47 +54,59 @@
     Object.values(state.cities).forEach(function(city){
       city.taxBurden = clamp((city.taxBurden||0) - 1, 0, 4);
       city.conscription = clamp((city.conscription||0) - 1, 0, 4);
-      const growth = Math.max(8, Math.floor(city.development * 9 + city.loyalty / 8 - city.taxBurden * 10 - city.conscription * 14));
+      const adviser = city.ownerForceId ? bestCivil(state, city.id, city.ownerForceId, 'recover') : null;
+      const e = effect(adviser);
+      const growth = Math.max(1, Math.floor(city.development * 3 + city.loyalty / 22 + city.order / 35 - city.taxBurden * 7 - city.conscription * 9 + (e.growth || 0)));
       city.population = clamp((city.population||0) + growth, 120, 9999);
     });
   }
   function performDevelop(state, forceId, cityId, isAi){
     const city = state.cities[cityId], force = state.forces[forceId];
-    if(!city || !force || city.ownerForceId !== forceId || force.gold < 28 || force.food < 18){ return false; }
-    force.gold -= 28; force.food -= 18;
-    city.development = clamp(city.development + 1, 1, 6);
-    city.order = clamp(city.order + 6, 35, 100);
-    city.loyalty = clamp(city.loyalty + 4, 30, 100);
-    createLog(state, getForceName(state, forceId)+'在'+city.nameZh+'整修仓场与街市，开发略有提升。', isAi ? 'ai' : 'normal');
+    const adviser = bestCivil(state, cityId, forceId, 'develop');
+    const e = effect(adviser);
+    const goldCost = Math.max(20, 28 - (e.costCut || 0));
+    const foodCost = Math.max(10, 18 - (e.foodCut || 0));
+    if(!city || !force || city.ownerForceId !== forceId || force.gold < goldCost || force.food < foodCost){ return false; }
+    force.gold -= goldCost; force.food -= foodCost;
+    city.development = clamp(city.development + 1 + (e.develop || 0), 1, 6);
+    city.order = clamp(city.order + 5 + (e.developOrder || 0), 35, 100);
+    city.loyalty = clamp(city.loyalty + 3 + (e.developLoyalty || 0), 30, 100);
+    city.population = clamp((city.population||0) + 6 + (e.growth || 0) + Math.floor((adviser ? adviser.politics : 50) / 25), 120, 9999);
+    createLog(state, getForceName(state, forceId)+'在'+city.nameZh+'整修仓场与街市，开发略有提升'+civilPhrase(adviser)+'。', isAi ? 'ai' : 'normal');
     return true;
   }
   function performTax(state, forceId, cityId, isAi){
     const city = state.cities[cityId], force = state.forces[forceId];
+    const adviser = bestCivil(state, cityId, forceId, 'tax');
+    const e = effect(adviser);
     if(!city || !force || city.ownerForceId !== forceId || !canTaxCity(city)){ return false; }
-    const gain = 52 + city.development * 8;
-    const popLoss = 42 + city.taxBurden * 26;
+    const gain = 52 + city.development * 8 + (e.taxGold || 0) + Math.floor((adviser ? adviser.politics : 50) / 10);
+    const popLoss = Math.max(8, 30 + city.taxBurden * 18 - Math.floor((adviser ? adviser.politics : 50) / 14) - (e.taxPopRelief || 0));
     force.gold = clamp(force.gold + gain, 0, 9999);
     city.population = clamp(city.population - popLoss, 120, 9999);
     city.taxBurden = clamp(city.taxBurden + 1, 0, 4);
-    city.order = clamp(city.order - 8, 25, 100);
-    city.loyalty = clamp(city.loyalty - 6, 22, 100);
-    createLog(state, getForceName(state, forceId)+'在'+city.nameZh+'加征钱粮，得金'+gain+'，但民间颇有怨声。', isAi ? 'ai' : 'normal');
+    city.order = clamp(city.order - Math.max(2, 7 - (e.taxOrderRelief || 0)), 25, 100);
+    city.loyalty = clamp(city.loyalty - Math.max(2, 5 - (e.taxLoyaltyRelief || 0)), 22, 100);
+    createLog(state, getForceName(state, forceId)+'在'+city.nameZh+'加征钱粮，得金'+gain+'，人口外流'+popLoss+civilPhrase(adviser)+'。', isAi ? 'ai' : 'normal');
     return true;
   }
   function performRecruit(state, forceId, cityId, isAi){
     const city = state.cities[cityId], force = state.forces[forceId];
-    const leadOfficer = best(getCityOfficers(state, cityId, forceId), 'leadership');
-    if(!city || !force || city.ownerForceId !== forceId || force.gold < 36 || force.food < 42 || !canRecruitCity(city)){ return false; }
-    const drafted = 64 + city.development * 10 + Math.floor((leadOfficer ? leadOfficer.leadership : 50) / 5) + city.conscription * 8;
-    const popLoss = drafted;
-    const gain = drafted;
-    force.gold -= 36; force.food -= 42;
+    const leadOfficer = bestRecruit(state, cityId, forceId) || best(getCityOfficers(state, cityId, forceId), 'leadership');
+    const e = effect(leadOfficer);
+    const foodCost = Math.max(30, 42 - (e.recruitFoodCut || 0));
+    if(!city || !force || city.ownerForceId !== forceId || force.gold < 36 || force.food < foodCost || !canRecruitCity(city)){ return false; }
+    const drafted = 64 + city.development * 10 + Math.floor((leadOfficer ? leadOfficer.leadership : 50) / 5) + city.conscription * 8 + (leadOfficer && leadOfficer.civilSkill === '简练军籍' ? (e.recruit || 0) : 0) + (leadOfficer && leadOfficer.specialSkill === '治军' ? 18 : 0);
+    const gain = Math.min(drafted, Math.max(0, city.population - 120));
+    force.gold -= 36; force.food -= foodCost;
     city.troops += gain;
-    city.population = clamp(city.population - popLoss, 120, 9999);
+    city.population = clamp(city.population - gain, 120, 9999);
     city.conscription = clamp(city.conscription + 1, 0, 4);
-    city.order = clamp(city.order - 5, 25, 100);
-    city.loyalty = clamp(city.loyalty - 4, 22, 100);
-    createLog(state, getForceName(state, forceId)+'在'+city.nameZh+'整伍征兵，新增兵力'+gain+'，乡里壮丁多被抽调。', isAi ? 'ai' : 'normal');
+    city.training = clamp((city.training||65) + 3 + (e.training||0), 35, 100);
+    city.morale = clamp((city.morale||65) + 2 + (leadOfficer&&leadOfficer.specialSkill==='治军'?2:0), 35, 100);
+    city.order = clamp(city.order - Math.max(2, 5 - (e.recruitOrderRelief || 0)), 25, 100);
+    city.loyalty = clamp(city.loyalty - Math.max(1, 4 - (e.recruitLoyaltyRelief || 0)), 22, 100);
+    createLog(state, getForceName(state, forceId)+'在'+city.nameZh+'整伍征兵，人口转为兵籍'+gain+militaryPhrase(leadOfficer)+'。', isAi ? 'ai' : 'normal');
     return true;
   }
   function performAppoint(state, forceId, cityId, isAi){
@@ -95,11 +124,11 @@
     if(!targetCity.ownerForceId || targetCity.ownerForceId === forceId || force.truces[targetCity.ownerForceId] || fromCity.troops < 120){ return false; }
     const already = (state.pendingAttacks||[]).some(function(item){ return item.fromCityId === fromCityId; });
     if(already){ return false; }
-    const commander = best(getCityOfficers(state, fromCityId, forceId), 'leadership') || best(getForceOfficers(state, forceId), 'leadership');
+    const commander = hydrate(bestBattle(getCityOfficers(state, fromCityId, forceId), 'attack') || bestBattle(getForceOfficers(state, forceId), 'attack'));
     const committed = Math.max(80, Math.floor(fromCity.troops * 0.6));
     fromCity.troops -= committed;
-    state.pendingAttacks.push({ attackerForceId:forceId, fromCityId:fromCityId, targetCityId:targetCityId, commanderId:commander ? commander.id : null, troops:committed });
-    createLog(state, getForceName(state, forceId)+'自'+fromCity.nameZh+'发兵攻向'+targetCity.nameZh+'。', isAi ? 'ai' : 'normal');
+    state.pendingAttacks.push({ attackerForceId:forceId, fromCityId:fromCityId, targetCityId:targetCityId, commanderId:commander ? commander.id : null, troops:committed, unitType:commander&&commander.unitType?commander.unitType:'infantry', specialSkill:commander&&commander.specialSkill?commander.specialSkill:'坚守', originMorale:fromCity.morale||65, originTraining:fromCity.training||65 });
+    createLog(state, getForceName(state, forceId)+'自'+fromCity.nameZh+'发兵攻向'+targetCity.nameZh+militaryPhrase(commander)+'。', isAi ? 'ai' : 'normal');
     return true;
   }
   function weakestFrontierCity(state, forceId){
@@ -202,7 +231,9 @@
   function triggerRebellions(state){
     Object.values(state.cities).forEach(function(city){
       if(!city.ownerForceId || state.gameOver){ return; }
-      const rebellionPressure = (40 - city.loyalty) * 0.015 + (48 - city.order) * 0.012 + city.taxBurden * 0.06 + city.conscription * 0.07;
+      const steward = bestCivil(state, city.id, city.ownerForceId, 'recover');
+      const stewardEffect = effect(steward);
+      const rebellionPressure = Math.max(0.01, (40 - city.loyalty) * 0.015 + (48 - city.order) * 0.012 + city.taxBurden * 0.06 + city.conscription * 0.07 - (stewardEffect.revoltRelief || 0));
       if(city.loyalty > 42 && city.order > 48 && city.taxBurden < 2 && city.conscription < 2){ return; }
       if(nextRandom(state) > Math.max(0.08, rebellionPressure)){ return; }
       const defectForceId = (city.loyalty <= 34 || city.order <= 28) ? pickDefectForce(state, city) : null;
@@ -341,7 +372,7 @@
   }
 
   window.FDTK.game = {
-    createNewGame: function(forceId){ const state = prev.createNewGame(forceId); ensureCityMeta(state); return state; },
+    createNewGame: function(forceId){ const state = prev.createNewGame(forceId); ensureCityMeta(state); Object.values(state.officers||{}).forEach(hydrate); return state; },
     getAvailableActions: getAvailableActions,
     applyAction: applyAction,
     safeEndTurn: safeEndTurn,
