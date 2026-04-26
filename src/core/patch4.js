@@ -43,6 +43,8 @@
       if(typeof city.population !== 'number'){ city.population = 900 + city.development * 140 + city.order * 3; }
       if(typeof city.taxBurden !== 'number'){ city.taxBurden = 0; }
       if(typeof city.conscription !== 'number'){ city.conscription = 0; }
+      if(typeof city.commerce !== 'number'){ city.commerce = Math.max(1, city.development || 1); }
+      if(typeof city.farming !== 'number'){ city.farming = Math.max(1, city.development || 1); }
     });
     if(!state.cityMonthFlags){ state.cityMonthFlags = flagsForCities(state.cities||{}); }
     Object.keys(state.cities||{}).forEach(function(id){ if(!state.cityMonthFlags[id]){ state.cityMonthFlags[id]={civilUsed:false,strategicUsed:false}; } });
@@ -73,6 +75,29 @@
     city.loyalty = clamp(city.loyalty + 3 + (e.developLoyalty || 0), 30, 100);
     city.population = clamp((city.population||0) + 6 + (e.growth || 0) + Math.floor((adviser ? adviser.politics : 50) / 25), 120, 9999);
     createLog(state, getForceName(state, forceId)+'在'+city.nameZh+'整修仓场与街市，开发略有提升'+civilPhrase(adviser)+'。', isAi ? 'ai' : 'normal');
+    return true;
+  }
+  function performDevelopSpecial(state, forceId, cityId, mode, isAi){
+    const city = state.cities[cityId], force = state.forces[forceId];
+    const adviser = bestCivil(state, cityId, forceId, 'develop');
+    const e = effect(adviser);
+    const goldCost = mode === 'commerce' ? Math.max(22, 30 - (e.costCut || 0)) : Math.max(18, 24 - (e.costCut || 0));
+    const foodCost = mode === 'commerce' ? Math.max(8, 14 - (e.foodCut || 0)) : Math.max(16, 26 - (e.foodCut || 0));
+    if(!city || !force || city.ownerForceId !== forceId || force.gold < goldCost || force.food < foodCost){ return false; }
+    force.gold -= goldCost;
+    force.food -= foodCost;
+    if(mode === 'commerce'){
+      city.commerce = clamp((city.commerce||city.development||1) + 1 + (e.develop || 0), 1, 10);
+      city.development = clamp(Math.max(city.development||1, Math.ceil(((city.commerce||1)+(city.farming||1))/2)), 1, 10);
+      city.loyalty = clamp(city.loyalty + 1 + (e.developLoyalty || 0), 30, 100);
+      createLog(state, getForceName(state, forceId)+'在'+city.nameZh+'疏通商路，市肆渐盛'+civilPhrase(adviser)+'。', isAi ? 'ai' : 'normal');
+    } else {
+      city.farming = clamp((city.farming||city.development||1) + 1 + (e.develop || 0), 1, 10);
+      city.development = clamp(Math.max(city.development||1, Math.ceil(((city.commerce||1)+(city.farming||1))/2)), 1, 10);
+      city.population = clamp((city.population||0) + 14 + (e.growth || 0) + Math.floor((adviser ? adviser.politics : 50) / 20), 120, 9999);
+      city.order = clamp(city.order + 3 + (e.developOrder || 0), 35, 100);
+      createLog(state, getForceName(state, forceId)+'在'+city.nameZh+'修渠垦田，农桑渐复'+civilPhrase(adviser)+'。', isAi ? 'ai' : 'normal');
+    }
     return true;
   }
   function performTax(state, forceId, cityId, isAi){
@@ -107,6 +132,24 @@
     city.order = clamp(city.order - Math.max(2, 5 - (e.recruitOrderRelief || 0)), 25, 100);
     city.loyalty = clamp(city.loyalty - Math.max(1, 4 - (e.recruitLoyaltyRelief || 0)), 22, 100);
     createLog(state, getForceName(state, forceId)+'在'+city.nameZh+'整伍征兵，人口转为兵籍'+gain+militaryPhrase(leadOfficer)+'。', isAi ? 'ai' : 'normal');
+    return true;
+  }
+  function performTrain(state, forceId, cityId, isAi){
+    const city = state.cities[cityId], force = state.forces[forceId];
+    const leadOfficer = bestRecruit(state, cityId, forceId) || best(getCityOfficers(state, cityId, forceId), 'leadership');
+    const e = effect(leadOfficer);
+    const goldCost = 24;
+    const foodCost = 24;
+    if(!city || !force || city.ownerForceId !== forceId || force.gold < goldCost || force.food < foodCost){ return false; }
+    if((city.training||65) >= 100 && (city.morale||65) >= 100){ return false; }
+    const trainingGain = 5 + Math.floor((leadOfficer ? leadOfficer.leadership : 55) / 24) + (e.training || 0) + (leadOfficer && leadOfficer.specialSkill === '治军' ? 2 : 0);
+    const moraleGain = 3 + (leadOfficer && leadOfficer.specialSkill === '治军' ? 2 : 0);
+    force.gold -= goldCost;
+    force.food -= foodCost;
+    city.training = clamp((city.training||65) + trainingGain, 35, 100);
+    city.morale = clamp((city.morale||65) + moraleGain, 35, 100);
+    city.order = clamp(city.order + 1, 25, 100);
+    createLog(state, getForceName(state, forceId)+'在'+city.nameZh+'操练军伍，训练度提升'+trainingGain+militaryPhrase(leadOfficer)+'。', isAi ? 'ai' : 'normal');
     return true;
   }
   function performAppoint(state, forceId, cityId, isAi){
@@ -166,6 +209,7 @@
 
       if(attackPlan && nextRandom(state) > 0.28){ scheduleAttack(state, force.id, attackPlan.fromCityId, attackPlan.targetCityId, true); return; }
       if(weakFrontier && weakFrontier.troops < 175 && force.gold >= 36 && force.food >= 42 && canRecruitCity(weakFrontier)){ performRecruit(state, force.id, weakFrontier.id, true); return; }
+      if(weakFrontier && (weakFrontier.training||65) < 72 && force.gold >= 24 && force.food >= 24){ performTrain(state, force.id, weakFrontier.id, true); return; }
       if(reserve.length && weakFrontier){ performAppoint(state, force.id, weakFrontier.id, true); return; }
       if(force.food < 140 && capital && canTaxCity(capital)){ performTax(state, force.id, capital.id, true); return; }
       if(capital && nextRandom(state) > 0.4){ performDevelop(state, force.id, capital.id, true); return; }
@@ -344,9 +388,52 @@
         if(!canRecruitCity(city)){ action.enabled = false; action.reason = '人口、忠诚、治安或兵役不允许继续征兵。'; }
       }
     });
+    if(city){
+      const flags = state.cityMonthFlags && state.cityMonthFlags[city.id] ? state.cityMonthFlags[city.id] : state.monthFlags || {strategicUsed:false};
+      const ownCity = city.ownerForceId === state.playerForceId;
+      const force = state.forces[state.playerForceId] || {};
+      actions.splice(3, 0, {
+        id:'train',
+        label:(TEXT.actions&&TEXT.actions.train)||'训练',
+        enabled:!!(ownCity && !flags.strategicUsed && force.gold >= 24 && force.food >= 24 && ((city.training||65) < 100 || (city.morale||65) < 100)),
+        reason:'',
+        options:[]
+      });
+      const flagsCivil = state.cityMonthFlags && state.cityMonthFlags[city.id] ? state.cityMonthFlags[city.id] : state.monthFlags || {civilUsed:false};
+      const canDevelop = !!(ownCity && !flagsCivil.civilUsed && force.gold >= 24 && force.food >= 14);
+      actions.push({id:'developCommerce', label:'商业开发', enabled:canDevelop && force.gold >= 30, reason:'', options:[]});
+      actions.push({id:'developFarm', label:'农田开发', enabled:canDevelop && force.food >= 26, reason:'', options:[]});
+    }
     return actions;
   }
   function applyAction(inputState, action){
+    if(action.type === 'developCommerce' || action.type === 'developFarm'){
+      const nextState = clone(inputState);
+      ensureCityMeta(nextState);
+      const city = nextState.cities[nextState.selectedCityId];
+      const flags = city && nextState.cityMonthFlags ? (nextState.cityMonthFlags[city.id] || {civilUsed:false, strategicUsed:false}) : (nextState.monthFlags || {civilUsed:false, strategicUsed:false});
+      const mode = action.type === 'developCommerce' ? 'commerce' : 'farm';
+      if(city && city.ownerForceId === nextState.playerForceId && !flags.civilUsed && performDevelopSpecial(nextState, nextState.playerForceId, city.id, mode, false)){
+        flags.civilUsed = true;
+        if(nextState.cityMonthFlags){ nextState.cityMonthFlags[city.id] = flags; }
+        nextState.monthFlags = flags;
+        setFeedback(nextState, mode === 'commerce' ? '商业开发完成' : '农田开发完成', city.nameZh+(mode === 'commerce' ? '商旅渐集，金收入根基提高。' : '水利田亩整修，人口恢复与粮产根基提高。'), 'normal', city.id);
+      }
+      return nextState;
+    }
+    if(action.type === 'train'){
+      const nextState = clone(inputState);
+      ensureCityMeta(nextState);
+      const city = nextState.cities[nextState.selectedCityId];
+      const flags = city && nextState.cityMonthFlags ? (nextState.cityMonthFlags[city.id] || {civilUsed:false, strategicUsed:false}) : (nextState.monthFlags || {civilUsed:false, strategicUsed:false});
+      if(city && city.ownerForceId === nextState.playerForceId && !flags.strategicUsed && performTrain(nextState, nextState.playerForceId, city.id, false)){
+        flags.strategicUsed = true;
+        if(nextState.cityMonthFlags){ nextState.cityMonthFlags[city.id] = flags; }
+        nextState.monthFlags = flags;
+        setFeedback(nextState, '训练完成', city.nameZh+'军伍整肃，训练度与士气有所提升。', 'normal', city.id);
+      }
+      return nextState;
+    }
     if(action.type === 'endTurn'){
       return safeEndTurn(inputState);
     }

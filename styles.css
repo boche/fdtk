@@ -651,6 +651,7 @@ body {
   gap: 12px;
   padding: 0 16px 16px;
   min-height: 0;
+  align-items: start;
 }
 
 .command-rail,
@@ -662,6 +663,7 @@ body {
 
 .command-rail {
   grid-template-rows: repeat(3, auto);
+  align-self: start;
 }
 
 .rail-card,
@@ -1250,19 +1252,270 @@ body {
   stroke-width: 4px;
 }
 
+/* RTK10-inspired city stage using project-owned WebP backgrounds */
+.city-stage-card {
+  background: rgba(34, 24, 16, 0.78);
+  border-color: rgba(255, 224, 171, 0.22);
+  box-shadow: 0 18px 34px rgba(29, 17, 8, 0.32);
+}
+
+.city-stage-card .stage-header {
+  color: #f8e8c4;
+}
+
+.city-stage-card .stage-header small {
+  color: rgba(248, 232, 196, 0.72);
+}
+
+.stage-main {
+  background: #22170f;
+  border-color: rgba(255, 223, 172, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(255, 240, 207, 0.06);
+}
+
+.rtk-city-scene {
+  min-height: 470px;
+  background:
+    linear-gradient(180deg, rgba(255, 244, 220, 0.08), rgba(38, 26, 15, 0.16)),
+    radial-gradient(circle at 50% 38%, rgba(255, 238, 196, 0.16), transparent 44%),
+    var(--city-bg);
+  background-position: center;
+  background-size: cover;
+  isolation: isolate;
+}
+
+.rtk-city-scene::before,
+.rtk-city-scene::after,
+.scene-bg-wash {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.rtk-city-scene::before {
+  z-index: 1;
+  background:
+    linear-gradient(90deg, rgba(20, 12, 6, 0.32), transparent 20%, transparent 70%, rgba(20, 12, 6, 0.22)),
+    linear-gradient(180deg, rgba(255, 242, 207, 0.1), transparent 42%, rgba(28, 17, 9, 0.22));
+}
+
+.rtk-city-scene::after {
+  z-index: 1;
+  box-shadow: inset 0 0 0 8px rgba(41, 29, 18, 0.26), inset 0 0 46px rgba(20, 11, 5, 0.22);
+}
+
+.scene-bg-wash {
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(236, 218, 178, 0.08), rgba(68, 44, 25, 0.16));
+  mix-blend-mode: soft-light;
+}
+
+.rtk-city-name,
+.rtk-floating,
+.rtk-facilities,
+.stage-main .mini-map-panel {
+  z-index: 4;
+}
+
+.rtk-city-name {
+  left: 16px;
+  top: 14px;
+  min-width: 124px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 227, 176, 0.36);
+  background: linear-gradient(180deg, rgba(55, 35, 22, 0.92), rgba(31, 20, 14, 0.88));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
+}
+
+.rtk-city-name strong {
+  font-size: 20px;
+  letter-spacing: 1px;
+}
+
+.rtk-floating {
+  right: 18px;
+  width: 278px;
+  border-radius: 5px;
+  color: #f7e7c4;
+  background: linear-gradient(180deg, rgba(59, 38, 23, 0.9), rgba(32, 20, 13, 0.84));
+  border: 1px solid rgba(255, 226, 175, 0.28);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+}
+
+.rtk-floating span {
+  color: rgba(247, 231, 196, 0.82);
+}
+
+.rtk-floating.bad {
+  background: linear-gradient(180deg, rgba(92, 36, 25, 0.92), rgba(49, 22, 16, 0.86));
+}
+
+.rtk-city-scene .scene-feedback {
+  top: 16px;
+}
+
+.rtk-city-scene .scene-advisor {
+  top: 104px;
+}
+
+.rtk-facilities {
+  position: absolute;
+  left: 16px;
+  top: 86px;
+  width: 150px;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 7px;
+}
+
+.rtk-facilities .district-card,
+.rtk-facilities .district-card.office,
+.rtk-facilities .district-card.barracks,
+.rtk-facilities .district-card.market,
+.rtk-facilities .district-card.farm,
+.rtk-facilities .district-card.wall,
+.rtk-facilities .district-card.ward {
+  position: relative;
+  left: auto;
+  right: auto;
+  top: auto;
+  bottom: auto;
+  width: auto;
+  height: auto;
+  min-height: 48px;
+  padding: 7px 9px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "art title value"
+    "art meta value";
+  align-items: center;
+  gap: 2px 8px;
+  color: #ffe9bd;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 221, 162, 0.38);
+  background:
+    linear-gradient(180deg, rgba(151, 82, 33, 0.94), rgba(92, 45, 19, 0.96)),
+    radial-gradient(circle at 30% 0, rgba(255, 226, 160, 0.22), transparent 38%);
+  box-shadow: inset 0 0 0 1px rgba(45, 23, 10, 0.32), 0 6px 12px rgba(0, 0, 0, 0.24);
+}
+
+.rtk-facilities .district-card:hover {
+  transform: translateX(2px);
+  border-color: rgba(255, 238, 190, 0.68);
+}
+
+.rtk-facilities .district-card.farm {
+  background:
+    linear-gradient(180deg, rgba(113, 112, 48, 0.96), rgba(70, 88, 35, 0.96)),
+    radial-gradient(circle at 30% 0, rgba(255, 230, 160, 0.18), transparent 36%);
+  color: #f7f0d2;
+}
+
+.rtk-facilities .district-art {
+  grid-area: art;
+  width: 30px;
+  height: 26px;
+  margin: 0;
+}
+
+.rtk-facilities .district-title {
+  grid-area: title;
+  font-size: 13px;
+  color: #fff0c9;
+}
+
+.rtk-facilities .district-value {
+  grid-area: value;
+  font-size: 18px;
+  color: #fff5da;
+  justify-self: end;
+}
+
+.rtk-facilities .district-meta {
+  grid-area: meta;
+  font-size: 11px;
+  color: rgba(255, 239, 206, 0.76);
+}
+
+.stage-main .mini-map-panel {
+  width: 236px;
+  right: 18px;
+  bottom: 18px;
+  background: linear-gradient(180deg, rgba(50, 34, 22, 0.9), rgba(30, 21, 15, 0.88));
+  border-radius: 8px;
+}
+
+.stage-main .mini-map-svg {
+  height: 156px;
+}
+
+.city-stage-card .advisor-note {
+  background: rgba(45, 30, 18, 0.62);
+  color: rgba(250, 232, 198, 0.86);
+  border: 1px solid rgba(255, 225, 176, 0.14);
+}
+
 /* panel tabs, district art, and battle motion */
 .panel-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+  align-items: stretch;
+}
+
+.panel-tabs.compact-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.command-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.command-subpanel {
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(83, 52, 29, 0.06);
+  border: 1px solid rgba(83, 52, 29, 0.12);
+}
+
+.command-subpanel-light {
+  background: rgba(248, 237, 212, 0.52);
+}
+
+.command-subhead {
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #5a3b25;
+}
+
+.split-buttons {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.attack-buttons {
+  margin-top: 8px;
+}
+
+.compact-notes {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .panel-tab {
+  height: 74px;
   padding: 9px 10px;
   border-radius: 9px;
   background: rgba(84, 51, 30, 0.1);
   border: 1px solid rgba(84, 51, 30, 0.18);
   color: #4f3728;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .panel-tab.active {
@@ -2145,3 +2398,239 @@ body {
 
 .officer-skills { font-size: 13px; color: #7a4524; font-weight: 700; line-height: 1.45; }
 .officer-impact { color: #6b4a32; line-height: 1.45; }
+
+.civil-advice-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.advice-lead {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 12px;
+  color: #f7e7c4;
+  background: linear-gradient(180deg, rgba(72, 47, 29, 0.94), rgba(39, 25, 17, 0.92));
+  border: 1px solid rgba(255, 225, 176, 0.22);
+}
+
+.advice-lead span {
+  color: rgba(247, 231, 196, 0.86);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.burden-grid {
+  margin: 0;
+}
+
+.civic-status-row.simplified-status {
+  grid-template-columns: 300px minmax(0, 1fr);
+}
+
+.wide-overview {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.ink-map-bg {
+  opacity: 0.96;
+}
+
+.ink-border {
+  stroke: rgba(43, 31, 19, 0.2);
+  stroke-width: 2;
+}
+
+.stage-main .mini-map-panel {
+  width: 472px;
+  max-width: calc(100% - 36px);
+  padding: 10px;
+  background: linear-gradient(180deg, rgba(45, 30, 18, 0.88), rgba(28, 19, 13, 0.84));
+}
+
+.stage-main .mini-map-svg {
+  height: 312px;
+}
+
+.stage-main .mini-map-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.stage-main .link-line {
+  stroke: rgba(71, 50, 30, 0.28);
+  stroke-width: 2;
+}
+
+.strategy-map {
+  background: #d8c39a;
+}
+
+.strategy-relief {
+  opacity: 0.42;
+  filter: saturate(0.72) contrast(1.06);
+}
+
+.strategy-region {
+  opacity: 0.78;
+  stroke: rgba(255, 242, 208, 0.58);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 1px rgba(19, 13, 8, 0.28));
+}
+
+.strategy-region-border {
+  fill: none;
+  stroke: rgba(33, 24, 17, 0.48);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.strategy-coast {
+  fill: none;
+  stroke: rgba(29, 22, 16, 0.44);
+  stroke-width: 5;
+  stroke-linejoin: round;
+}
+
+.strategy-river {
+  fill: none;
+  stroke: rgba(91, 154, 174, 0.68);
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.strategy-river.thin {
+  stroke-width: 4;
+}
+
+.stage-main .map-road {
+  stroke: rgba(255, 244, 218, 0.86);
+  stroke-width: 5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 1px 1px rgba(35, 24, 16, 0.65));
+}
+
+.strategy-city .node-shadow {
+  fill: rgba(0, 0, 0, 0.36);
+}
+
+.strategy-city .node-frame {
+  fill: rgba(238, 225, 194, 0.96);
+  stroke: rgba(36, 25, 16, 0.82);
+  stroke-width: 2.5;
+}
+
+.strategy-city .node-core {
+  stroke: rgba(29, 20, 14, 0.46);
+  stroke-width: 1;
+}
+
+.strategy-city.selected .node-frame {
+  stroke: #ffe6a5;
+  stroke-width: 4;
+  filter: drop-shadow(0 0 6px rgba(255, 218, 126, 0.9));
+}
+
+.strategy-city.player .node-core {
+  filter: drop-shadow(0 0 5px rgba(255, 241, 187, 0.76));
+}
+
+.stage-main .mini-city-label {
+  font-size: 14px;
+  stroke-width: 3px;
+  fill: #fff0c9;
+  stroke: rgba(33, 22, 14, 0.86);
+}
+
+.city-stage-card .advisor-strip {
+  gap: 10px;
+}
+
+.city-stage-card .advisor-note {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  background: rgba(45, 30, 18, 0.82);
+  color: rgba(255, 238, 205, 0.96);
+  border: 1px solid rgba(255, 225, 176, 0.22);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.city-scene.rtk-city-scene,
+.stage-main .city-scene.rtk-city-scene {
+  min-height: 470px;
+}
+
+.civic-shell {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.civic-shell .civic-main {
+  height: 100%;
+  align-items: stretch;
+}
+
+.civic-shell .command-rail {
+  align-self: start;
+}
+
+.civic-shell .city-stage-card,
+.civic-shell .stage-main,
+.civic-shell .city-scene.rtk-city-scene,
+.civic-shell .stage-main .city-scene.rtk-city-scene {
+  min-height: 0;
+}
+
+.civic-shell .city-stage-card {
+  height: 100%;
+}
+
+.civic-shell .stage-main {
+  height: 100%;
+}
+
+.civic-shell .city-scene.rtk-city-scene,
+.civic-shell .stage-main .city-scene.rtk-city-scene {
+  height: 100%;
+}
+
+@media (max-width: 1440px) {
+  .wide-overview {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .stage-main .mini-map-panel {
+    width: 420px;
+  }
+
+  .stage-main .mini-map-svg {
+    height: 278px;
+  }
+
+  .city-scene.rtk-city-scene,
+  .stage-main .city-scene.rtk-city-scene {
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .rtk-facilities {
+    width: 132px;
+  }
+
+  .rtk-floating {
+    width: 230px;
+  }
+
+  .stage-main .mini-map-panel {
+    width: 260px;
+  }
+
+  .stage-main .mini-map-svg {
+    height: 172px;
+  }
+}
