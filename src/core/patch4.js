@@ -167,6 +167,10 @@
     if(!targetCity.ownerForceId || targetCity.ownerForceId === forceId || force.truces[targetCity.ownerForceId] || fromCity.troops < 120){ return false; }
     const already = (state.pendingAttacks||[]).some(function(item){ return item.fromCityId === fromCityId; });
     if(already){ return false; }
+    const underAttack = (state.pendingAttacks||[]).some(function(item){ return item.targetCityId === fromCityId; });
+    if(underAttack){ return false; }
+    const reciprocal = (state.pendingAttacks||[]).some(function(item){ return item.fromCityId === targetCityId && item.targetCityId === fromCityId; });
+    if(reciprocal){ return false; }
     const commander = hydrate(bestBattle(getCityOfficers(state, fromCityId, forceId), 'attack') || bestBattle(getForceOfficers(state, forceId), 'attack'));
     const committed = Math.max(80, Math.floor(fromCity.troops * 0.6));
     fromCity.troops -= committed;

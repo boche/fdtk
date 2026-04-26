@@ -611,7 +611,7 @@
     createLog(state, target.nameZh + '暂未决意，' + getForceName(state, forceId) + '此次招揽未果' + civilSkillPhrase(adviser) + '。', isAi ? 'ai' : 'normal');
     return true;
   }
-  function scheduleAttack(state, forceId, fromCityId, targetCityId, isAi) {
+  function scheduleAttack(state, forceId, fromCityId, targetCityId, isAi, sourceAction) {
     const fromCity = state.cities[fromCityId];
     const targetCity = state.cities[targetCityId];
     const force = state.forces[forceId];
@@ -623,7 +623,8 @@
     }
 
     const commander = hydrateOfficerSkills(getBestBattleOfficer(getCityOfficers(state, fromCityId, forceId), 'attack') || getBestBattleOfficer(getForceOfficers(state, forceId), 'attack'));
-    const committed = Math.max(80, Math.floor(fromCity.troops * 0.6));
+    const requestedCommitted = sourceAction && sourceAction.tacticalCommittedTroops ? Math.floor(sourceAction.tacticalCommittedTroops) : 0;
+    const committed = clamp(requestedCommitted || Math.max(80, Math.floor(fromCity.troops * 0.6)), 1, fromCity.troops);
     fromCity.troops -= committed;
     state.pendingAttacks.push({
       attackerForceId: forceId,
@@ -635,6 +636,12 @@
       specialSkill: commander && commander.specialSkill ? commander.specialSkill : '坚守',
       originMorale: fromCity.morale || 65,
       originTraining: fromCity.training || 65,
+      tacticalResult: sourceAction ? sourceAction.tacticalResult : null,
+      tacticalCommittedTroops: sourceAction ? sourceAction.tacticalCommittedTroops : null,
+      tacticalAttackerSurvivors: sourceAction ? sourceAction.tacticalAttackerSurvivors : null,
+      tacticalDefenderSurvivors: sourceAction ? sourceAction.tacticalDefenderSurvivors : null,
+      tacticalAttackerLoss: sourceAction ? sourceAction.tacticalAttackerLoss : null,
+      tacticalDefenderLoss: sourceAction ? sourceAction.tacticalDefenderLoss : null,
     });
     createLog(state, getForceName(state, forceId) + '自' + fromCity.nameZh + '发兵攻向' + targetCity.nameZh + militarySkillPhrase(commander) + '。', isAi ? 'ai' : 'normal');
     return true;
@@ -754,12 +761,15 @@
       const tacticalWin = battle.tacticalResult === 'win';
       const tacticalLose = battle.tacticalResult === 'lose';
       const attackerWon = tacticalWin || (!tacticalLose && attackerScore > defenderScore);
+      const hasTacticalNumbers = typeof battle.tacticalAttackerSurvivors === 'number' && typeof battle.tacticalDefenderSurvivors === 'number';
+      const tacticalCommitted = Math.max(0, Math.floor(battle.tacticalCommittedTroops || battle.troops));
 
       if (attackerWon) {
-        const attackerLoss = Math.floor(battle.troops * rollInRange(state, 0.32, 0.5));
+        const attackerLoss = hasTacticalNumbers ? Math.max(0, tacticalCommitted - Math.max(0, battle.tacticalAttackerSurvivors)) : Math.floor(battle.troops * rollInRange(state, 0.32, 0.5));
+        const attackerSurvivors = hasTacticalNumbers ? Math.max(0, battle.tacticalAttackerSurvivors) : Math.max(0, battle.troops - attackerLoss);
         const oldOwner = targetCity.ownerForceId;
         targetCity.ownerForceId = battle.attackerForceId;
-        targetCity.troops = Math.max(70, battle.troops - attackerLoss);
+        targetCity.troops = Math.max(1, attackerSurvivors);
         targetCity.training = clamp((battle.originTraining || 65) - 8, 35, 100);
         targetCity.morale = clamp((battle.originMorale || 65) + 6, 35, 100);
         changeCitySpirit(targetCity, -10, -12);
@@ -768,7 +778,7 @@
           commander.cityId = targetCity.id;
           commander.assigned = true;
         }
-        createLog(state, formatters.battleLog(getForceName(state, battle.attackerForceId), targetCity.nameZh, '攻城得手，守军溃散，城池易主。'), 'battle');
+        createLog(state, formatters.battleLog(getForceName(state, battle.attackerForceId), targetCity.nameZh, '攻城得手，守军溃散，城池易主。攻方损失' + attackerLoss + '，入城残兵' + targetCity.troops + '。'), 'battle');
         rerouteOfficersAfterCapture(state, oldOwner, targetCity.id, battle.attackerForceId);
         if (state.gameOver) {
           return;
@@ -776,14 +786,14 @@
         state.cities[battle.fromCityId].troops = clamp(state.cities[battle.fromCityId].troops, 40, 9999);
         fromCity.morale = clamp((fromCity.morale || 65) + 2, 35, 100);
       } else {
-        const attackerLoss = Math.floor(battle.troops * rollInRange(state, 0.5, 0.7));
-        const defenderLoss = Math.floor(targetCity.troops * rollInRange(state, 0.22, 0.4));
-        const survivors = Math.max(0, battle.troops - attackerLoss);
-        targetCity.troops = Math.max(50, targetCity.troops - defenderLoss);
-        state.cities[battle.fromCityId].troops += Math.floor(survivors * 0.45);
+        const attackerLoss = hasTacticalNumbers ? Math.max(0, tacticalCommitted - Math.max(0, battle.tacticalAttackerSurvivors)) : Math.floor(battle.troops * rollInRange(state, 0.5, 0.7));
+        const defenderLoss = hasTacticalNumbers ? Math.max(0, targetCity.troops - Math.max(0, battle.tacticalDefenderSurvivors)) : Math.floor(targetCity.troops * rollInRange(state, 0.22, 0.4));
+        const survivors = hasTacticalNumbers ? Math.max(0, battle.tacticalAttackerSurvivors) : Math.max(0, battle.troops - attackerLoss);
+        targetCity.troops = hasTacticalNumbers ? Math.max(0, battle.tacticalDefenderSurvivors) : Math.max(50, targetCity.troops - defenderLoss);
+        state.cities[battle.fromCityId].troops += survivors;
         targetCity.morale = clamp((targetCity.morale || 65) - 2, 35, 100);
         fromCity.morale = clamp((fromCity.morale || 65) - 5, 35, 100);
-        createLog(state, formatters.battleLog(getForceName(state, battle.attackerForceId), targetCity.nameZh, '攻城受挫，军势退回原镇。'), 'battle');
+        createLog(state, formatters.battleLog(getForceName(state, battle.attackerForceId), targetCity.nameZh, '攻城受挫，军势退回原镇。攻方损失' + attackerLoss + '，守方损失' + defenderLoss + '。'), 'battle');
       }
     });
 
@@ -943,7 +953,7 @@
     }
 
     if (action.type === 'attack' && hasPlayerSelectedOwnCity(nextState) && canUseStrategic(nextState)) {
-      if (scheduleAttack(nextState, nextState.playerForceId, selectedCity.id, action.targetCityId, false)) {
+      if (scheduleAttack(nextState, nextState.playerForceId, selectedCity.id, action.targetCityId, false, action)) {
         nextState.monthFlags.strategicUsed = true;
       }
       return nextState;
